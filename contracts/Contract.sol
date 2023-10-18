@@ -8,20 +8,23 @@ contract Contract {
     * VARIABLES
     */
 
-    mapping(address => Entity) entities;
-    mapping(address => address) relations;
+    mapping(address => Role) entities; // addrass -> Role
+    mapping(address => address) relations; // CS -> CPO
+    mapping(address => Deal[]) deals; // EV -> Deal[]
+    mapping(address => mapping(address => Deal)) pendingDeals; // CPO -> EV -> Deal
 
     enum Role { CPO, CS, EV }
-    struct Entity {
+    /*struct Entity {
         Role role;
-        address payable entityAddress;
+        address entityAddress;
         Deal[] deals;
         Entity[] relations;
-    }
+    }*/
 
     struct Deal {
-        Entity EV;
-        Entity CPO;
+        address EV;
+        address CPO;
+        bool accepted;
         bool onlyRewneableEnergy;
         uint maxRate;
         bool allowSmartCharging;
@@ -36,60 +39,92 @@ contract Contract {
     event RegisteredCPO(address cpo);
     event RegisteredCS(address cs, address cpo);
     event RegisteredEV(address ev);
+    event ProposedDeal(address indexed cpo, address ev, Deal deal);
 
     /*
     * FUNCTIONS
     */
 
     function isRegistered(address target) public view returns (bool) {
-        return entities[target].entityAddress != address(0);
+        return entities[target] != Role(0);
     }
     function isRole(address target, Role role) public view returns (bool) {
-        return entities[target].role == role;
+        return entities[target] == role;
     }
 
-    function registerCPO(address payable CPOaddress) public {
+    function registerCPO(address CPOaddress) public {
         require(CPOaddress == msg.sender, "Sender address must be the same as register address");
-        require(!isRegistered(CPOaddress), "Address already registered");
+        require(!isRegistered(CPOaddress), "CPO already registered");
 
-        entities[CPOaddress] = Entity({
+        /*entities[CPOaddress] = Entity({
             role: Role.CPO,
             entityAddress: CPOaddress,
             deals: new Deal[](0),
             relations: new Entity[](0)
-        });
+        });*/
+        entities[CPOaddress] = Role.CPO;
 
         emit RegisteredCPO(CPOaddress);
     }
 
-    function registerCS(address payable CPOaddress, address payable CSaddress) public {
+    function registerCS(address CPOaddress, address CSaddress) public {
         require(CPOaddress == msg.sender, "Sender address must be the same as register address");
         require(isRole(CPOaddress, Role.CPO), "Sender is not a CPO");
-        require(!isRegistered(CSaddress), "Address already registered");
+        require(!isRegistered(CSaddress), "CS already registered");
 
-        entities[CSaddress] = Entity({
+        /*entities[CSaddress] = Entity({
             role: Role.CS,
             entityAddress: CSaddress,
             deals: new Deal[](0),
             relations: new Entity[](0)
-        });
-
+        });*/
+        entities[CSaddress] = Role.CS;
         relations[CSaddress] = CPOaddress;
 
         emit RegisteredCS(CSaddress, CPOaddress);
     }
 
-    function registerEV(address payable EVaddress) public {
+    function registerEV(address EVaddress) public {
         require(EVaddress == msg.sender, "Sender address must be the same as register address");
-        require(!isRegistered(EVaddress), "Address already registered");
+        require(!isRegistered(EVaddress), "EV already registered");
 
-        entities[EVaddress] = Entity({
+        /*entities[EVaddress] = Entity({
             role: Role.EV,
             entityAddress: EVaddress,
             deals: new Deal[](0),
             relations: new Entity[](0)
-        });
+        });*/
+        entities[EVaddress] = Role.EV;
+
         emit RegisteredEV(EVaddress);
+    }
+
+    function proposeDeal(address EVaddress, address CPOaddress) public {
+        require(EVaddress == msg.sender, "Sender address must be the same as EV address");
+        require(isRegistered(EVaddress), "EV is not registered");
+        require(isRegistered(CPOaddress), "CPO is not registered");
+
+        Deal memory proposedDeal = Deal({
+            EV: EVaddress,
+            CPO: CPOaddress,
+            accepted: false,
+            onlyRewneableEnergy: false,
+            maxRate: 500,
+            allowSmartCharging: true,
+            startDate: block.timestamp,
+            endDate: block.timestamp + 1 days
+        });
+
+        pendingDeals[CPOaddress][EVaddress] = proposedDeal;
+
+        emit ProposedDeal(CPOaddress, EVaddress, proposedDeal);
+
+    }
+
+    function respondDeal(address CPOaddress, address EVaddress) public {
+        require(CPOaddress == msg.sender, "Sender address must be the same as CPO address");
+        require(isRegistered(CPOaddress), "CPO is not registered");
+        require(isRegistered(EVaddress), "EV is not registered");
     }
 
 
