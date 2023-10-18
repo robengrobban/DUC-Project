@@ -12,8 +12,6 @@ contract Contract {
     mapping(address => address) internal registeredCS; // list of registered CS connect to CPO
     mapping(address => bool) internal registeredEV; // list of registered EV
 
-    struct Contract 
-
     /*
     * EVENTS
     */
