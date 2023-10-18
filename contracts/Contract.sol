@@ -14,7 +14,7 @@ contract Contract {
     enum Role { CPO, CS, EV }
     struct Entity {
         Role role;
-        address payable address_;
+        address payable entityAddress;
         Deal[] deals;
         Entity[] relations;
     }
@@ -42,7 +42,7 @@ contract Contract {
     */
 
     function isRegistered(address target) public view returns (bool) {
-        return entities[target].address_ != address(0);
+        return entities[target].entityAddress != address(0);
     }
     function isRole(address target, Role role) public view returns (bool) {
         return entities[target].role == role;
@@ -54,7 +54,7 @@ contract Contract {
 
         entities[CPOaddress] = Entity({
             role: Role.CPO,
-            address_: CPOaddress,
+            entityAddress: CPOaddress,
             deals: new Deal[](0),
             relations: new Entity[](0)
         });
@@ -69,7 +69,7 @@ contract Contract {
 
         entities[CSaddress] = Entity({
             role: Role.CS,
-            address_: CSaddress,
+            entityAddress: CSaddress,
             deals: new Deal[](0),
             relations: new Entity[](0)
         });
@@ -85,7 +85,7 @@ contract Contract {
 
         entities[EVaddress] = Entity({
             role: Role.EV,
-            address_: EVaddress,
+            entityAddress: EVaddress,
             deals: new Deal[](0),
             relations: new Entity[](0)
         });
