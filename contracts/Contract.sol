@@ -8,9 +8,26 @@ contract Contract {
     * VARIABLES
     */
 
-    mapping(address => bool) internal registeredCPO; // list of registered CPO
-    mapping(address => address) internal registeredCS; // list of registered CS connect to CPO
-    mapping(address => bool) internal registeredEV; // list of registered EV
+    mapping(address => Entity) entities;
+    mapping(address => address) relations;
+
+    enum Role { CPO, CS, EV }
+    struct Entity {
+        Role role;
+        address payable user;
+        Deal[] deals;
+        Entity[] relations;
+    }
+
+    struct Deal {
+        Entity EV;
+        Entity CPO;
+        bool onlyRewneableEnergy;
+        uint maxRate;
+        bool allowSmartCharging;
+        uint startDate;
+        uint endDate;
+    }
 
     /*
     * EVENTS
@@ -24,37 +41,55 @@ contract Contract {
     * FUNCTIONS
     */
 
-    function isRegistered(address check) public view returns (bool) {
-        return registeredCPO[check] || registeredCS[check] != address(0) || registeredEV[check];
+    function isRegistered(address target) public view returns (bool) {
+        return entities[target].user != address(0);
     }
-    function isCPO(address check) public view returns (bool) {
-        return registeredCPO[check];
-    }
-    function isCS(address check) public view returns (bool) {
-        return registeredCS[check] != address(0);
-    }
-    function isEV(address check) public view returns (bool) {
-        return registeredEV[check];
+    function isRole(address target, Role role) public view returns (bool) {
+        return entities[target].role == role;
     }
 
-    function registerCPO() public {
-        address newCPO = msg.sender;
-        require(!isRegistered(newCPO), "Address already registered");
-        registeredCPO[newCPO] = true;
-        emit RegisteredCPO(newCPO);
+    function registerCPO(address payable CPOaddress) public {
+        require(CPOaddress == msg.sender, "Sender address must be the same as register address");
+        require(!isRegistered(CPOaddress), "Address already registered");
+
+        entities[CPOaddress] = Entity({
+            role: Role.CPO,
+            user: CPOaddress,
+            deals: new Deal[](0),
+            relations: new Entity[](0)
+        });
+
+        emit RegisteredCPO(CPOaddress);
     }
-    function registerCS(address newCS) public {
-        address CPO = msg.sender;
-        require(isCPO(CPO), "Sender is not a CPO");
-        require(!isRegistered(newCS), "Address already registered");
-        registeredCS[newCS] = CPO;
-        emit RegisteredCS(newCS, CPO);
+
+    function registerCS(address payable CPOaddress, address payable CSaddress) public {
+        require(CPOaddress == msg.sender, "Sender address must be the same as register address");
+        require(isRole(CPOaddress, Role.CPO), "Sender is not a CPO");
+        require(!isRegistered(CSaddress), "Address already registered");
+
+        entities[CSaddress] = Entity({
+            role: Role.CS,
+            user: CSaddress,
+            deals: new Deal[](0),
+            relations: new Entity[](0)
+        });
+
+        relations[CSaddress] = CPOaddress;
+
+        emit RegisteredCS(CSaddress, CPOaddress);
     }
-    function registerEV() public {
-        address newEV = msg.sender;
-        require(!isRegistered(newEV), "Address already registered");
-        registeredEV[newEV] = true;
-        emit RegisteredEV(newEV);
+
+    function registerEV(address payable EVaddress) public {
+        require(EVaddress == msg.sender, "Sender address must be the same as register address");
+        require(!isRegistered(EVaddress), "Address already registered");
+
+        entities[EVaddress] = Entity({
+            role: Role.EV,
+            user: EVaddress,
+            deals: new Deal[](0),
+            relations: new Entity[](0)
+        });
+        emit RegisteredEV(EVaddress);
     }
 
 
