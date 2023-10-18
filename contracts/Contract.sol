@@ -53,16 +53,20 @@ contract Contract {
         return entities[target] == role;
     }
 
+    /*function createEntity(address entityAddress, Role role) private returns (Entity) {
+        return Entity({
+            role: role,
+            entityAddress: entityAddress,
+            deals: new Deal[](0),
+            relations: new Entity[](0)
+        });
+    }*/
+
     function registerCPO(address CPOaddress) public {
         require(CPOaddress == msg.sender, "Sender address must be the same as register address");
         require(!isRegistered(CPOaddress), "CPO already registered");
 
-        /*entities[CPOaddress] = Entity({
-            role: Role.CPO,
-            entityAddress: CPOaddress,
-            deals: new Deal[](0),
-            relations: new Entity[](0)
-        });*/
+        /*entities[CPOaddress] = createEntity(CPOaddress, Role.CPO)*/
         entities[CPOaddress] = Role.CPO;
 
         emit RegisteredCPO(CPOaddress);
@@ -73,12 +77,7 @@ contract Contract {
         require(isRole(CPOaddress, Role.CPO), "Sender is not a CPO");
         require(!isRegistered(CSaddress), "CS already registered");
 
-        /*entities[CSaddress] = Entity({
-            role: Role.CS,
-            entityAddress: CSaddress,
-            deals: new Deal[](0),
-            relations: new Entity[](0)
-        });*/
+        /*entities[CSaddress] = createEntity(CSaddress, Role.CS);*/
         entities[CSaddress] = Role.CS;
         relations[CSaddress] = CPOaddress;
 
@@ -89,12 +88,7 @@ contract Contract {
         require(EVaddress == msg.sender, "Sender address must be the same as register address");
         require(!isRegistered(EVaddress), "EV already registered");
 
-        /*entities[EVaddress] = Entity({
-            role: Role.EV,
-            entityAddress: EVaddress,
-            deals: new Deal[](0),
-            relations: new Entity[](0)
-        });*/
+        /*entities[EVaddress] = createEntity(EVaddress, Role.EV);*/
         entities[EVaddress] = Role.EV;
 
         emit RegisteredEV(EVaddress);
