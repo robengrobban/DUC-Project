@@ -8,4 +8,4 @@ console.log("Getting balance")
 let balance = await car.balance()
 console.log("Balance: " + balance)
 
-console.log(car)
+//console.log(car)
