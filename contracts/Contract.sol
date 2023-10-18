@@ -8,9 +8,11 @@ contract Contract {
     * VARIABLES
     */
 
-    mapping(address => Role) entities; // addrass -> Role
+    mapping(address => Role) entities; // CPO/CS/EV -> Role
+    // mapping(address => Entity) entities; // CPO/CS/EV -> Entity
     mapping(address => address) relations; // CS -> CPO
-    mapping(address => Deal[]) deals; // EV -> Deal[]
+    mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
+    //mapping(address => Deal[]) deals; var det förut ^^^
     mapping(address => mapping(address => Deal)) pendingDeals; // CPO -> EV -> Deal
 
     enum Role { CPO, CS, EV }
@@ -24,7 +26,6 @@ contract Contract {
     struct Deal {
         address EV;
         address CPO;
-        bool accepted;
         bool onlyRewneableEnergy;
         uint maxRate;
         bool allowSmartCharging;
@@ -107,7 +108,6 @@ contract Contract {
         Deal memory proposedDeal = Deal({
             EV: EVaddress,
             CPO: CPOaddress,
-            accepted: false,
             onlyRewneableEnergy: false,
             maxRate: 500,
             allowSmartCharging: true,
