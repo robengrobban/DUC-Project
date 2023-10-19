@@ -13,6 +13,12 @@ contract Contract {
     mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
     mapping(address => uint) deposits; // EV deposits
 
+    mapping(address => uint) powerDischarge;
+    mapping(address => int[60]) rate;
+    mapping(address => int) stateOfCharge;
+    mapping(address => uint) maxCapacity;
+    mapping(address => int) batteryEfficency;
+
     enum Role { NONE, CPO, CS, EV }
 
     uint nextDealId = 0;
