@@ -8,18 +8,29 @@ contract Contract {
     * VARIABLES
     */
 
-    mapping(address => Role) entities; // CPO/CS/EV -> Role
+    mapping(address => CPO) CPOs;
+    mapping(address => CS) CSs;
+    mapping(address => EV) EVs;    
+
     mapping(address => address) relations; // CS -> CPO
     mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
     mapping(address => uint) deposits; // EV deposits
 
-    mapping(address => uint) powerDischarge;
-    mapping(address => int[60]) rate;
-    mapping(address => int) stateOfCharge;
-    mapping(address => uint) maxCapacity;
-    mapping(address => int) batteryEfficency;
 
-    enum Role { NONE, CPO, CS, EV }
+    struct CPO {
+        bool exist;
+        uint[60] rates; // Rate each minute
+    }
+    struct CS {
+        bool exist;
+        uint powerDischarge; // Watt output
+    }
+    struct EV {
+        bool exist;
+        uint stateOfCharge; // Watt Minutes of charge
+        uint maxCapacity; // Watt Minutes of max charge
+        int batteryEfficency; // Battery charge efficency
+    }
 
     uint nextDealId = 0;
 
@@ -51,28 +62,33 @@ contract Contract {
     */
 
     function isRegistered(address target) public view returns (bool) {
-        return entities[target] != Role.NONE;
+        return CPOs[target].exist || CSs[target].exist || EVs[target].exist;
     }
-    function isRole(address target, Role role) public view returns (bool) {
-        require(isRegistered(target), "Address must be registered!");
-        return entities[target] == role;
+    function isCPO(address target) public view returns (bool) {
+        return CPOs[target].exist;
+    }
+    function isCS(address target) public view returns (bool) {
+        return CSs[target].exist;
+    }
+    function isEV(address target) public view returns (bool) {
+        return EVs[target].exist;
     }
 
     function registerCPO(address CPOaddress) public {
         require(CPOaddress == msg.sender, "Sender address must be the same as register address");
         require(!isRegistered(CPOaddress), "CPO already registered");
 
-        entities[CPOaddress] = Role.CPO;
+        CPOs[CPOaddress] = createCPO();
 
         emit RegisteredCPO(CPOaddress);
     }
 
     function registerCS(address CPOaddress, address CSaddress) public {
         require(CPOaddress == msg.sender, "Sender address must be the same as register address");
-        require(isRole(CPOaddress, Role.CPO), "Sender is not a CPO");
+        require(isCPO(CPOaddress), "Sender is not a CPO");
         require(!isRegistered(CSaddress), "CS already registered");
 
-        entities[CSaddress] = Role.CS;
+        CSs[CSaddress] = createCS();
         relations[CSaddress] = CPOaddress;
 
         emit RegisteredCS(CSaddress, CPOaddress);
@@ -82,15 +98,15 @@ contract Contract {
         require(EVaddress == msg.sender, "Sender address must be the same as register address");
         require(!isRegistered(EVaddress), "EV already registered");
 
-        entities[EVaddress] = Role.EV;
+        EVs[EVaddress] = createEV();
 
         emit RegisteredEV(EVaddress);
     }
 
     function proposeDeal(address EVaddress, address CPOaddress) public {
         require(EVaddress == msg.sender, "Sender address must be the same as EV address");
-        require(isRole(EVaddress, Role.EV), "EV address not registered EV");
-        require(isRole(CPOaddress, Role.CPO), "CPO address not registered CPO");
+        require(isEV(EVaddress), "EV address not registered EV");
+        require(isCPO(CPOaddress), "CPO address not registered CPO");
 
         Deal memory currentDeal = deals[EVaddress][CPOaddress];
         if ( currentDeal.EV != address(0) && !currentDeal.accepted ) {
@@ -120,8 +136,8 @@ contract Contract {
 
     function revertProposedDeal(address EVaddress, address CPOaddress, uint dealId) public {
         require(EVaddress == msg.sender, "Sender address must be the same as EV address");
-        require(isRole(EVaddress, Role.EV), "EV address not registered EV");
-        require(isRole(CPOaddress, Role.CPO), "CPO address not registered CPO");
+        require(isEV(EVaddress), "EV address not registered EV");
+        require(isCPO(CPOaddress), "CPO address not registered CPO");
 
         Deal memory proposedDeal = deals[EVaddress][CPOaddress];
         if ( proposedDeal.EV == address(0) ) {
@@ -142,8 +158,8 @@ contract Contract {
 
     function respondDeal(address CPOaddress, address EVaddress, bool accepted, uint dealId) public {
         require(CPOaddress == msg.sender, "Sender address must be the same as CPO address");
-        require(isRole(CPOaddress, Role.CPO), "CPO address not registered CPO");
-        require(isRole(EVaddress, Role.EV), "EV address not registered EV");
+        require(isCPO(CPOaddress), "CPO address not registered CPO");
+        require(isEV(EVaddress), "EV address not registered EV");
 
         Deal memory proposedDeal = deals[EVaddress][CPOaddress];
         if ( proposedDeal.EV == address(0) ) {
@@ -169,6 +185,22 @@ contract Contract {
     /*
     * PRIVATE FUNCTIONS
     */
+
+    function createCPO() private pure returns (CPO memory) {
+        CPO memory cpo;
+        cpo.exist = true;
+        return cpo;
+    }
+    function createCS() private pure returns (CS memory) {
+        CS memory cs;
+        cs.exist = true;
+        return cs;    
+    }
+    function createEV() private pure returns (EV memory) {
+        EV memory ev;
+        ev.exist = true;
+        return ev;
+    }
 
     function getNextDealId() private returns (uint) {
         nextDealId++;
