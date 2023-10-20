@@ -18,6 +18,13 @@ class EV extends Entity {
         return balance;
     }
 
+    async test() {
+        console.log("Calling contract");
+        let response = await this.contract.methods.isRegistered( this.address ).call();
+        console.log("Response contract");
+        return response;
+    }
+
 }
 
 export { EV }
