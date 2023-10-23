@@ -6,8 +6,8 @@ const car = new EV();
 const station = new CS();
 const operator = new CPO();
 
-let balance = await car.balance();
-console.log(car.wallet);
+console.log(await car.balance());
+
 await car.connectContract();
 let result = await car.register();
 console.log(result);

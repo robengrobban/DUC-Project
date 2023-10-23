@@ -1,9 +1,8 @@
-import { Web3 } from 'web3'
-import { promises as fs } from 'fs'
+import { Web3 } from 'web3';
+import { promises as fs } from 'fs';
 
 class Entity {
 
-    address;
     secret;
     network;
     web3;
@@ -16,8 +15,7 @@ class Entity {
     abi;
     contract_address;
 
-    constructor(address, secret, network) {
-        this.address = address;
+    constructor(secret, network) {
         this.secret = secret;
         this.network = network;
 
@@ -26,12 +24,14 @@ class Entity {
         this.wallet = this.web3.eth.accounts.wallet;
         this.account = this.web3.eth.accountProvider.privateKeyToAccount(this.secret);
         this.wallet.add(this.account);
+        this.web3.eth.defaultAccount = this.account.address;
     }
 
     async connectContract() {
         this.abi = JSON.parse(await fs.readFile("contracts/Contract.abi", "utf-8"));
         this.contract_address = await fs.readFile("contracts/Contract.address", "utf-8");
-        this.contract = new this.web3.eth.Contract(this.abi, this.contract_address);
+        this.contract = await new this.web3.eth.Contract(this.abi, this.contract_address);
+        this.contract.defaultAccount = this.account.address;
         return this.contract;
     }
 
@@ -56,7 +56,7 @@ class Entity {
     }
 
     async balance() {
-        return await this.web3.eth.getBalance(this.address);
+        return await this.web3.eth.getBalance(this.account.address);
     }
 
 }
