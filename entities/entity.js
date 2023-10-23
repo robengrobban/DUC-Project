@@ -3,6 +3,10 @@ import { promises as fs } from 'fs';
 
 class Entity {
 
+    /*
+     * Variables
+     */
+
     secret;
     network;
     web3;
@@ -15,11 +19,16 @@ class Entity {
     abi;
     contract_address;
 
+    /**
+     * Functions
+     */
+
     constructor(secret, network) {
         this.secret = secret;
         this.network = network;
 
         this.web3 = new Web3(this.network);
+        this.web3.defaultNetworkId = 15;
 
         this.wallet = this.web3.eth.accounts.wallet;
         this.account = this.web3.eth.accountProvider.privateKeyToAccount(this.secret);
@@ -32,31 +41,25 @@ class Entity {
         this.contract_address = await fs.readFile("contracts/Contract.address", "utf-8");
         this.contract = await new this.web3.eth.Contract(this.abi, this.contract_address);
         this.contract.defaultAccount = this.account.address;
+        this.contract.defaultNetworkId = 15;
         return this.contract;
     }
 
-    async listenToEvent(event, topics = []) {
-        return await this.contract.events[event]({
-            fromBlock: 'latest',
-            topics: topcis
-        });
-    }
-
-    async isRegistered(address) {
+    async isRegistered(address = this.account.address) {
         return await this.contract.methods.isRegistered(address).call();
     }
-    async isCPO(address) {
+    async isCPO(address = this.account.address) {
         return await this.contract.methods.isCPO(address).call();
     }
-    async isCS(address) {
+    async isCS(address = this.account.address) {
         return await this.contract.methods.isCS(address).call();
     }
-    async isEV(address) {
+    async isEV(address = this.account.address) {
         return await this.contract.methods.isEV(address).call();
     }
 
-    async balance() {
-        return await this.web3.eth.getBalance(this.account.address);
+    async balance(address = this.account.address) {
+        return await this.web3.eth.getBalance(address);
     }
 
 }

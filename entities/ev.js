@@ -2,7 +2,16 @@ import { Entity } from './entity.js';
 
 class EV extends Entity {
 
+    /**
+     * Variables
+     */
+
+    /**
+     * Functions
+     */
+
     constructor() {
+        // address = 0x5DAff3F5C181fE4692CAD290d729D8478ee34E1D
         super(
             '0xd0a5e7b124eb5c1d327f7c19c988bb57979637043e52db48683da62900973b96', // secret
             'ws://192.168.174.130:8546' // network
@@ -11,23 +20,11 @@ class EV extends Entity {
     }
 
     async register() {
-        let registered = await this.isRegistered(this.address);
-        console.log(registered);
-        if ( registered ) {
-            throw new Error("Already registered");
-        }
-
-        let response = await this.contract.methods.registerEV(this.address).send();
-        return response;
+        return await this.contract.methods.registerEV(this.account.address).send();
     }
 
-    async sendMoney() {
-        let tx = {
-            to: '0x2C2C18Fe7E216447231198E039d2997615620eD7',
-            value: 100
-        }
-
-        return await this.web3.eth.sendTransaction(tx);
+    async proposeDeal(CPOaddress) {
+        return await this.contract.methods.proposeDeal(this.account.address, CPOaddress).send();
     }
 
 }

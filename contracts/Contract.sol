@@ -11,11 +11,7 @@ contract Contract {
     mapping(address => CPO) CPOs;
     mapping(address => CS) CSs;
     mapping(address => EV) EVs;    
-
     mapping(address => address) relations; // CS -> CPO
-    mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
-    mapping(address => uint) deposits; // EV deposits
-
 
     struct CPO {
         bool exist;
@@ -32,8 +28,9 @@ contract Contract {
         int batteryEfficency; // Battery charge efficency
     }
 
-    uint nextDealId = 0;
+    mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
 
+    uint nextDealId = 0;
     struct Deal {
         uint id;
         bool accepted;
@@ -46,6 +43,24 @@ contract Contract {
         bool allowSmartCharging;
     }
 
+    mapping(address => mapping(address => Connection)) connections; // EV -> CS -> Connection
+
+    struct Connection {
+        uint nonce;
+        address EV;
+        address CS;
+        bool EVconnected;
+        bool CSconnected;
+        uint establishedDate;
+    }
+
+    mapping(address => uint) deposits; // EV deposits
+
+
+    
+
+    
+
     /*
     * EVENTS
     */
@@ -53,9 +68,13 @@ contract Contract {
     event RegisteredCPO(address cpo);
     event RegisteredCS(address cs, address cpo);
     event RegisteredEV(address ev);
+
     event ProposedDeal(address indexed ev, address indexed cpo, Deal deal);
     event RevertProposedDeal(address indexed ev, address indexed cpo, Deal deal);
     event RespondDeal(address indexed ev, address indexed cpo, bool accepted, Deal deal);
+
+    event ConnectionMade(address indexed ev, address indexed cs, Connection connection);
+    event Disconnection(address indexed ev, address indexed cs);
 
     /*
     * PUBLIC FUNCTIONS
@@ -182,6 +201,75 @@ contract Contract {
 
     }
 
+    function connect(address EVaddress, address CSaddress, uint nonce) public {
+        require(msg.sender == EVaddress || msg.sender == CSaddress, "Sender must either be included EV/CS address");
+        require(isEV(EVaddress), "EV address not registered EV");
+        require(isCS(CSaddress), "CS address not registered CS");
+
+        // Check if connection exists
+        Connection memory currentConnection = connections[EVaddress][CSaddress];
+        if ( currentConnection.EVconnected && currentConnection.CSconnected ) {
+            revert("Connection already established");
+        }
+
+        if ( msg.sender == EVaddress ) {
+
+            // Check if connection is pending
+            if ( currentConnection.nonce == nonce && currentConnection.EVconnected ) {
+                revert("Connection is waiting for response from CS party");
+            }
+
+            currentConnection.EV = EVaddress;
+            currentConnection.EVconnected = true;
+            
+            if ( currentConnection.EVconnected && currentConnection.CSconnected ) {
+                currentConnection.establishedDate = block.timestamp;
+            }
+
+            connections[EVaddress][CSaddress] = currentConnection;
+
+            emit ConnectionMade(EVaddress, CSaddress, currentConnection);
+
+        }
+        else {
+
+            // Check if connection is pending
+            if ( currentConnection.nonce == nonce && currentConnection.CSconnected ) {
+                revert("Connection is waiting for response from EV party");
+            }
+
+            currentConnection.CS = CSaddress;
+            currentConnection.CSconnected = true;
+
+            if ( currentConnection.EVconnected && currentConnection.CSconnected ) {
+                currentConnection.establishedDate = block.timestamp;
+            }
+
+            connections[EVaddress][CSaddress] = currentConnection;
+
+            emit ConnectionMade(EVaddress, CSaddress, currentConnection);
+
+        }
+
+    }
+
+    function disconnection(address EVaddress, address CSaddress) public {
+        require(msg.sender == EVaddress || msg.sender == CSaddress, "Sender must either be included EV/CS address");
+        require(isEV(EVaddress), "EV address not registered EV");
+        require(isCS(CSaddress), "CS address not registered CS");
+
+        // Check that there exists a connection
+        Connection memory currentConnection = connections[EVaddress][CSaddress];
+        if ( !(currentConnection.EVconnected && currentConnection.CSconnected ) ) {
+            revert("No active connection exists");
+        }
+
+        removeConnection(EVaddress, CSaddress);
+
+        emit Disconnection(EVaddress, CSaddress);
+
+    }
+
     /*
     * PRIVATE FUNCTIONS
     */
@@ -210,6 +298,11 @@ contract Contract {
     function removeDeal(address EVaddres, address CPOaddress) private {
         Deal memory placeholder;
         deals[EVaddres][CPOaddress] = placeholder;
+    }
+
+    function removeConnection(address EVaddress, address CPOaddress) private {
+        Connection memory placeholder;
+        connections[EVaddress][CPOaddress] = placeholder;
     }
 
 }
