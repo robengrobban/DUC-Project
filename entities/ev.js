@@ -11,17 +11,14 @@ class EV extends Entity {
         
     }
 
-    async balance() {
-        console.log("Start transaction")
-        let balance = await this.web3.eth.getBalance(this.address)
-        console.log("End transaction")
-        return balance;
-    }
+    async register() {
+        let registered = await this.isRegistered(this.address);
+        console.log(registered);
+        if ( registered ) {
+            throw new Error("Already registered");
+        }
 
-    async test() {
-        console.log("Calling contract");
-        let response = await this.contract.methods.isRegistered( this.address ).call();
-        console.log("Response contract");
+        let response = await this.contract.methods.registerEV(this.address).send({from: this.address});
         return response;
     }
 
