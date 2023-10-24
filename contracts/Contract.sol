@@ -8,6 +8,13 @@ contract Contract {
     * VARIABLES
     */
 
+    uint constant RATE_SLOTS = 60;              // How many rate slots there are, should be compatible with how often the rate changes.
+    uint constant RATE_CHANGE_IN_SECONDS = 60;  // What is the factor of rate changes in minutes? 
+                                                // Used to calculate when a new rate starts, see function getNextRateChange()
+                                                // 60 = rate change every second
+                                                // 3600 = rate change every hour (60 * 60)
+                                                // 86400 = rate change every day (60 * 60 * 24)
+
     mapping(address => CPO) CPOs;
     mapping(address => CS) CSs;
     mapping(address => EV) EVs;    
@@ -15,7 +22,13 @@ contract Contract {
 
     struct CPO {
         bool exist;
-        uint[60] rates; // Rate each minute
+        uint[RATE_SLOTS] rates; // Rate each minute
+        uint rateStartDate; // The date when the rates was applied
+
+        uint[RATE_SLOTS] newRates; // The next rate schedule
+        uint rateChangeDate; // The date when the new rates are expected to change
+
+        uint[RATE_SLOTS] historicalRates; // What the last rate was
     }
     struct CS {
         bool exist;
@@ -75,6 +88,8 @@ contract Contract {
 
     event ConnectionMade(address indexed ev, address indexed cs, Connection connection);
     event Disconnection(address indexed ev, address indexed cs);
+
+    event NewRates(address indexed cpo, CPO details);
 
     /*
     * PUBLIC FUNCTIONS
@@ -196,6 +211,9 @@ contract Contract {
         if ( !accepted ) {
             removeDeal(EVaddress, CPOaddress);
         }
+        else {
+            deals[EVaddress][CPOaddress] = proposedDeal;
+        }
 
         emit RespondDeal(EVaddress, CPOaddress, accepted, proposedDeal);
 
@@ -270,6 +288,29 @@ contract Contract {
 
     }
 
+    function setRates(address CPOaddress, uint[RATE_SLOTS] calldata rates) public {
+        require(msg.sender == CPOaddress, "Sender must be the same as CPO address to add rates to");
+        require(isCPO(CPOaddress), "CPO address must be registered CPO");
+        require(rates.length == RATE_SLOTS, "Rates array must be in correct intervall");
+
+        CPO memory currentCPO = CPOs[CPOaddress];
+        // There are no current rates
+        if ( currentCPO.rates[0] == 0 ) {
+            currentCPO.rateStartDate = block.timestamp;
+            currentCPO.rates = rates;
+        }
+        // There are existing rates.
+        else {
+            currentCPO.newRates = rates;
+            currentCPO.rateChangeDate = getNextRateChange();
+        }
+
+        CPOs[CPOaddress] = currentCPO;
+
+        emit NewRates(CPOaddress, currentCPO);
+
+    }
+
     /*
     * PRIVATE FUNCTIONS
     */
@@ -303,6 +344,39 @@ contract Contract {
     function removeConnection(address EVaddress, address CPOaddress) private {
         Connection memory placeholder;
         connections[EVaddress][CPOaddress] = placeholder;
+    }
+
+    function getNextRateChange() private view returns (uint) {
+        uint currentTimestamp = block.timestamp;
+        uint nextTimestamp = (((currentTimestamp / RATE_CHANGE_IN_SECONDS) + 1) * RATE_CHANGE_IN_SECONDS);
+        return nextTimestamp;
+    }
+
+    function getCurrentRateInterval() private view returns (uint) {
+        uint currentTimestamp = block.timestamp;
+        uint currentInterval = currentTimestamp % RATE_CHANGE_IN_SECONDS;
+        return currentInterval;
+    }
+
+    function transferToNewRates(address CPOaddress) private returns (bool) {
+
+        CPO memory currentCPO = CPOs[CPOaddress];
+
+        if ( currentCPO.rateChangeDate <= block.timestamp ) {
+            currentCPO.historicalRates = currentCPO.rates;
+
+            currentCPO.rates = currentCPO.newRates;
+            currentCPO.rateStartDate = block.timestamp;
+
+            uint[60] memory empty;
+            currentCPO.newRates = empty;
+            currentCPO.rateChangeDate = 0;
+
+            CPOs[CPOaddress] = currentCPO;
+
+            return true;
+        }
+        return false;
     }
 
 }

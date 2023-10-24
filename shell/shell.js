@@ -10,7 +10,7 @@ await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
 
-if ( true ) {
+if ( false ) {
     operator.contract.events.RegisteredCPO({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered CPO: ", log);
     });
@@ -22,7 +22,7 @@ if ( true ) {
     })
 }
 
-if ( true ) {
+if ( false ) {
     console.log("Registring EV...");
     await car.register();
     console.log("Registring CPO...");
@@ -38,6 +38,18 @@ if ( true ) {
 }
 
 if ( true ) {
+    operator.contract.events.NewRates({fromBlock: 'latest'}).on('data', log => {
+        console.log("New reates: ", log);
+    });
+
+    // Register rates
+    console.log("Registring new rates...");
+    let rates = operator.generateRates();
+    await operator.registerNewRates(rates);
+
+}
+
+if ( false ) {
     operator.contract.events.ProposedDeal({fromBlock: 'latest'}).on('data', log => {
         console.log("New deal arrived: ", log);
         console.log("ev: ", log.returnValues.ev);
@@ -54,4 +66,7 @@ if ( true ) {
 
 }
 
+if ( true ) {
+    // Connect
+}
 

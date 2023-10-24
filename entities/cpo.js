@@ -6,6 +6,8 @@ class CPO extends Entity {
      * Variables
      */
 
+    rateSlots = 60;
+
     /**
      * Functions
      */
@@ -29,6 +31,18 @@ class CPO extends Entity {
 
     async respondDeal(EVaddress, answer, id) {
         return await this.contract.methods.respondDeal(this.account.address, EVaddress, answer, id).send();
+    }
+
+    generateRates() {
+        let rates = [];
+        for (let i = 0; i < this.rateSlots; i++) {
+            rates[i] = this.web3.utils.toBigInt( Math.floor(-0.05*i**2) + 3*i + 5 );
+        }
+        return rates;
+    }
+
+    async registerNewRates(rates) {
+        return await this.contract.methods.setRates(this.account.address, rates).send();
     }
 
 }
