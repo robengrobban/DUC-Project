@@ -25,7 +25,6 @@ class Entity {
         this.network = network;
 
         this.web3 = new Web3(this.network);
-        this.web3.defaultNetworkId = 15;
 
         this.wallet = this.web3.eth.accounts.wallet;
         this.account = this.web3.eth.accountProvider.privateKeyToAccount(this.secret);
@@ -37,10 +36,9 @@ class Entity {
         let abi = JSON.parse(await fs.readFile("contracts/Contract.abi", "utf-8"));
         let contract_address = await fs.readFile("contracts/Contract.address", "utf-8");
 
-        this.contract = await new this.web3.eth.Contract(abi, contract_address);
+        this.contract = new this.web3.eth.Contract(abi, contract_address);
         this.contract.defaultAccount = this.account.address;
-        this.contract.defaultNetworkId = 15;
-        
+
         return this.contract;
     }
 
