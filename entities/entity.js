@@ -16,9 +16,6 @@ class Entity {
 
     contract;
 
-    abi;
-    contract_address;
-
     /**
      * Functions
      */
@@ -37,11 +34,13 @@ class Entity {
     }
 
     async connectContract() {
-        this.abi = JSON.parse(await fs.readFile("contracts/Contract.abi", "utf-8"));
-        this.contract_address = await fs.readFile("contracts/Contract.address", "utf-8");
-        this.contract = await new this.web3.eth.Contract(this.abi, this.contract_address);
+        let abi = JSON.parse(await fs.readFile("contracts/Contract.abi", "utf-8"));
+        let contract_address = await fs.readFile("contracts/Contract.address", "utf-8");
+
+        this.contract = await new this.web3.eth.Contract(abi, contract_address);
         this.contract.defaultAccount = this.account.address;
         this.contract.defaultNetworkId = 15;
+        
         return this.contract;
     }
 
