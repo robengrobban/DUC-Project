@@ -8,12 +8,12 @@ contract Contract {
     * VARIABLES
     */
 
-    uint constant RATE_SLOTS = 60;              // How many rate slots there are, should be compatible with how often the rate changes.
-    uint constant RATE_CHANGE_IN_SECONDS = 60;  // What is the factor of rate changes in minutes? 
-                                                // Used to calculate when a new rate starts, see function getNextRateChange()
-                                                // 60 = rate change every second
-                                                // 3600 = rate change every hour (60 * 60)
-                                                // 86400 = rate change every day (60 * 60 * 24)
+    uint constant RATE_SLOTS = 60;                  // How many rate slots there are, should be compatible with how often the rate changes.
+    uint constant RATE_CHANGE_IN_SECONDS = 3600;    // What is the factor of rate changes in minutes? 
+                                                    // Used to calculate when a new rate starts, see function getNextRateChange()
+                                                    // 60 = rate change every second
+                                                    // 3600 = rate change every hour (60 * 60)
+                                                    // 86400 = rate change every day (60 * 60 * 24)
 
     mapping(address => CPO) CPOs;
     mapping(address => CS) CSs;
