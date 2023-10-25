@@ -25,8 +25,8 @@ class CPO extends Entity {
         return await this.contract.methods.registerCPO(this.account.address).send();
     }
 
-    async registerCS(CSaddress) {
-        return await this.contract.methods.registerCS(this.account.address, CSaddress).send();
+    async registerCS(CSaddress, powerDischarge) {
+        return await this.contract.methods.registerCS(this.account.address, CSaddress, powerDischarge).send();
     }
 
     async respondDeal(EVaddress, answer, id) {

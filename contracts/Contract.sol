@@ -17,8 +17,7 @@ contract Contract {
 
     mapping(address => CPO) CPOs;
     mapping(address => CS) CSs;
-    mapping(address => EV) EVs;    
-    mapping(address => address) relations; // CS -> CPO
+    mapping(address => EV) EVs;
 
     struct CPO {
         bool exist;
@@ -33,12 +32,13 @@ contract Contract {
     struct CS {
         bool exist;
         uint powerDischarge; // Watt output
+        address relation; // Connection to what CPO
     }
     struct EV {
         bool exist;
         uint stateOfCharge; // Watt Minutes of charge
         uint maxCapacity; // Watt Minutes of max charge
-        int batteryEfficency; // Battery charge efficency
+        uint batteryEfficency; // Battery charge efficency (0-100)
     }
 
     mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
@@ -117,22 +117,24 @@ contract Contract {
         emit RegisteredCPO(CPOaddress);
     }
 
-    function registerCS(address CPOaddress, address CSaddress) public {
+    function registerCS(address CPOaddress, address CSaddress, uint powerDischarge) public {
         require(CPOaddress == msg.sender, "Sender address must be the same as register address");
         require(isCPO(CPOaddress), "Sender is not a CPO");
         require(!isRegistered(CSaddress), "CS already registered");
+        require(powerDischarge > 0, "Power discharg must be greater than 0");
 
-        CSs[CSaddress] = createCS();
-        relations[CSaddress] = CPOaddress;
+        CSs[CSaddress] = createCS(CPOaddress, powerDischarge);
 
         emit RegisteredCS(CSaddress, CPOaddress);
     }
 
-    function registerEV(address EVaddress) public {
+    function registerEV(address EVaddress, uint maxCapacity, uint batteryEfficiency) public {
         require(EVaddress == msg.sender, "Sender address must be the same as register address");
         require(!isRegistered(EVaddress), "EV already registered");
+        require(maxCapacity != 0, "Max battery capacity cannot be set to 0");
+        require(batteryEfficiency > 0 && batteryEfficiency < 100, "Battery efficiency must be between 0 and 100, but not be 0 or 100");
 
-        EVs[EVaddress] = createEV();
+        EVs[EVaddress] = createEV(maxCapacity, batteryEfficiency);
 
         emit RegisteredEV(EVaddress);
     }
@@ -143,10 +145,10 @@ contract Contract {
         require(isCPO(CPOaddress), "CPO address not registered CPO");
 
         Deal memory currentDeal = deals[EVaddress][CPOaddress];
-        if ( currentDeal.EV != address(0) && !currentDeal.accepted ) {
+        if ( currentDeal.EV != address(0) && !currentDeal.accepted && currentDeal.endDate > block.timestamp ) {
             revert("Deal already proposed, waiting response");
         }
-        else if ( currentDeal.accepted ) {
+        else if ( isDealActive(EVaddress, CPOaddress) ) {
             revert("Accepted deal already exists");
         }
 
@@ -223,6 +225,7 @@ contract Contract {
         require(msg.sender == EVaddress || msg.sender == CSaddress, "Sender must either be included EV/CS address");
         require(isEV(EVaddress), "EV address not registered EV");
         require(isCS(CSaddress), "CS address not registered CS");
+        require(nonce != 0, "Nonce cannot be 0");
 
         // Check if connection exists
         Connection memory currentConnection = connections[EVaddress][CSaddress];
@@ -237,7 +240,9 @@ contract Contract {
                 revert("Connection is waiting for response from CS party");
             }
 
+            currentConnection.nonce = nonce;
             currentConnection.EV = EVaddress;
+            currentConnection.CS = CSaddress;
             currentConnection.EVconnected = true;
             
             if ( currentConnection.EVconnected && currentConnection.CSconnected ) {
@@ -256,6 +261,8 @@ contract Contract {
                 revert("Connection is waiting for response from EV party");
             }
 
+            currentConnection.nonce = nonce;
+            currentConnection.EV = EVaddress;
             currentConnection.CS = CSaddress;
             currentConnection.CSconnected = true;
 
@@ -320,20 +327,28 @@ contract Contract {
         cpo.exist = true;
         return cpo;
     }
-    function createCS() private pure returns (CS memory) {
+    function createCS(address CPOaddress, uint powerDischarge) private pure returns (CS memory) {
         CS memory cs;
         cs.exist = true;
+        cs.relation = CPOaddress;
+        cs.powerDischarge = powerDischarge;
         return cs;    
     }
-    function createEV() private pure returns (EV memory) {
+    function createEV(uint maxCapacitiy, uint batteryEfficiency) private pure returns (EV memory) {
         EV memory ev;
         ev.exist = true;
+        ev.maxCapacity = maxCapacitiy;
+        ev.batteryEfficency = batteryEfficiency;
         return ev;
     }
 
     function getNextDealId() private returns (uint) {
         nextDealId++;
         return nextDealId;
+    }
+
+    function isDealActive(address EVaddress, address CPOaddress) private view returns (bool) {
+        return deals[EVaddress][CPOaddress].accepted && deals[EVaddress][CPOaddress].endDate > block.timestamp;
     }
 
     function removeDeal(address EVaddres, address CPOaddress) private {
@@ -377,6 +392,30 @@ contract Contract {
             return true;
         }
         return false;
+    }
+
+    /*
+    * DEBUG FUNCTION
+    */
+
+    function debugConnection(address EVaddress, address CSaddress) public view returns (Connection memory) {
+        return connections[EVaddress][CSaddress];
+    }
+
+    function debugDeal(address EVaddress, address CPOaddress) public view returns (Deal memory) {
+        return deals[EVaddress][CPOaddress];
+    }
+
+    function debugEV(address EVaddress) public view returns (EV memory) {
+        return EVs[EVaddress];
+    }
+
+    function debugCS(address CSaddress) public view returns (CS memory) {
+        return CSs[CSaddress];
+    }
+
+    function debugCPO(address CPOaddress) public view returns (CPO memory) {
+        return CPOs[CPOaddress];
     }
 
 }

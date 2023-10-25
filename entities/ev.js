@@ -6,6 +6,11 @@ class EV extends Entity {
      * Variables
      */
 
+    model = 'Volvo C40'
+    currentCapacity = 39000;
+    maxCapacity = 78000;
+    batteryEfficiency = 0.9;
+
     /**
      * Functions
      */
@@ -20,11 +25,15 @@ class EV extends Entity {
     }
 
     async register() {
-        return await this.contract.methods.registerEV(this.account.address).send();
+        return await this.contract.methods.registerEV(this.account.address, this.maxCapacity, (this.batteryEfficiency*100)).send();
     }
 
     async proposeDeal(CPOaddress) {
         return await this.contract.methods.proposeDeal(this.account.address, CPOaddress).send();
+    }
+
+    async connect(CSaddress, nonce) {
+        return await this.contract.methods.connect(this.account.address, CSaddress, this.web3.utils.toBigInt(nonce)).send();
     }
 
 }

@@ -59,6 +59,23 @@ class Entity {
         return await this.web3.eth.getBalance(address);
     }
 
+
+    async debugDeal(EVaddress, CPOaddress) {
+        return await this.contract.methods.debugDeal(EVaddress, CPOaddress).call();
+    }
+    async debugConnection(EVaddress, CSaddress) {
+        return await this.contract.methods.debugConnection(EVaddress, CSaddress).call();
+    }
+    async debugEV(address = this.account.address) {
+        return await this.contract.methods.debugEV(address).call();
+    }
+    async debugCS(address = this.account.address) {
+        return await this.contract.methods.debugCS(address).call();
+    }
+    async debugCPO(address = this.account.address) {
+        return await this.contract.methods.debugCPO(address).call();
+    }
+
 }
 
 export { Entity }
