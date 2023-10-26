@@ -9,11 +9,18 @@ contract Contract {
     */
 
     uint constant RATE_SLOTS = 60;                  // How many rate slots there are, should be compatible with how often the rate changes.
-    uint constant RATE_CHANGE_IN_SECONDS = 3600;    // What is the factor of rate changes in minutes? 
+
+    uint constant RATE_CHANGE_IN_SECONDS = 3600;    // What is the factor of rate changes in seconds? 
                                                     // Used to calculate when a new rate starts, see function getNextRateChange()
-                                                    // 60 = rate change every second
+                                                    // 60 = rate change every minute
                                                     // 3600 = rate change every hour (60 * 60)
                                                     // 86400 = rate change every day (60 * 60 * 24)
+
+    uint constant PRECISION = 10000;                 // Affects the precision on calculation, as they are all integer calulcations.
+    struct PrecisionNumber {
+        uint value;
+        uint precision;
+    }
 
     mapping(address => CPO) CPOs;
     mapping(address => CS) CSs;
@@ -21,24 +28,27 @@ contract Contract {
 
     struct CPO {
         bool exist;
-        uint[RATE_SLOTS] rates; // Rate each minute
-        uint rateStartDate; // The date when the rates was applied
+        Rate rate;
+    }
+    struct Rate {
+        uint[RATE_SLOTS] current; // Rate each minute
+        uint startDate; // The date when the rates was applied
 
-        uint[RATE_SLOTS] newRates; // The next rate schedule
-        uint rateChangeDate; // The date when the new rates are expected to change
+        uint[RATE_SLOTS] next; // The next scheduled rates
+        uint changeDate; // The date when the new rates are expected to change
 
-        uint[RATE_SLOTS] historicalRates; // What the last rate was
+        uint[RATE_SLOTS] historical; // What the last rate was
     }
     struct CS {
         bool exist;
         uint powerDischarge; // Watt output
-        address relation; // Connection to what CPO
+        address cpo; // Connection to what CPO
     }
     struct EV {
         bool exist;
         uint stateOfCharge; // Watt Minutes of charge
         uint maxCapacity; // Watt Minutes of max charge
-        uint batteryEfficency; // Battery charge efficency (0-100)
+        uint batteryEfficiency; // Battery charge efficency (0-100)
     }
 
     mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
@@ -302,19 +312,71 @@ contract Contract {
 
         CPO memory currentCPO = CPOs[CPOaddress];
         // There are no current rates
-        if ( currentCPO.rates[0] == 0 ) {
-            currentCPO.rateStartDate = block.timestamp;
-            currentCPO.rates = rates;
+        if ( currentCPO.rate.current[0] == 0 ) {
+            currentCPO.rate.startDate = block.timestamp;
+            currentCPO.rate.current = rates;
         }
         // There are existing rates.
         else {
-            currentCPO.newRates = rates;
-            currentCPO.rateChangeDate = getNextRateChange();
+            currentCPO.rate.next = rates;
+            currentCPO.rate.changeDate = getNextRateChange();
         }
 
         CPOs[CPOaddress] = currentCPO;
 
         emit NewRates(CPOaddress, currentCPO);
+
+    }
+
+    function getDeposit(address EVaddress) public view returns (uint) {
+        return deposits[EVaddress];
+    }
+
+    function estimateChargingPrice(address EVaddress, address CSaddress, uint currentCharge) public view returns (uint) {
+        require(msg.sender == EVaddress, "Sender must be EV address");
+        require(isEV(EVaddress), "EV address must be registered EV");
+        require(isCS(CSaddress), "CS address must be registered CS");
+
+        EV memory ev = EVs[EVaddress];
+        CS memory cs = CSs[CSaddress];
+        CPO memory cpo = CPOs[cs.cpo];
+
+        // Make sure that there is still a deal active, and that the car is not fully charged
+        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
+        require( currentCharge < ev.maxCapacity && currentCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity" );
+
+        // Calculate charge time, and adjust it if the deal ends before fully charged.
+        uint startTime = block.timestamp;
+        uint chargeTime = calculateChargeTimeInSeconds(currentCharge, cs.powerDischarge, ev.batteryEfficiency);
+        uint dealTimeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
+        uint adjustedChargeTime = chargeTime > dealTimeLeft ? chargeTime - dealTimeLeft : chargeTime;
+
+        
+
+
+        uint rateStartInterval = getRateIntervalAt(startTime);
+
+
+
+
+    }
+
+    function requestCharging(address EVaddress, address CSaddress) payable public {
+        require(msg.sender == EVaddress, "Sender must be EV address");
+        require(isEV(EVaddress), "EV address must be registered EV");
+        require(isCS(CSaddress), "CS address must be registered CS");
+
+        CS memory currentCS = CSs[CSaddress];
+        
+        require(isDealActive(EVaddress, currentCS.cpo), "There is no deal between EV and CS CPO");
+
+        transferToNewRates(currentCS.cpo);
+
+        // Calculate ChargingScheme
+        uint deposit = msg.value;
+        uint totalPrice = 0;
+
+        require(deposit >= totalPrice, "Total deposit is incufficient");
 
     }
 
@@ -330,7 +392,7 @@ contract Contract {
     function createCS(address CPOaddress, uint powerDischarge) private pure returns (CS memory) {
         CS memory cs;
         cs.exist = true;
-        cs.relation = CPOaddress;
+        cs.cpo = CPOaddress;
         cs.powerDischarge = powerDischarge;
         return cs;    
     }
@@ -338,8 +400,14 @@ contract Contract {
         EV memory ev;
         ev.exist = true;
         ev.maxCapacity = maxCapacitiy;
-        ev.batteryEfficency = batteryEfficiency;
+        ev.batteryEfficiency = batteryEfficiency;
         return ev;
+    }
+
+    function createPrecisionNumber() private pure returns (PrecisionNumber memory) {
+        PrecisionNumber memory number;
+        number.precision = PRECISION;
+        return number;
     }
 
     function getNextDealId() private returns (uint) {
@@ -367,31 +435,46 @@ contract Contract {
         return nextTimestamp;
     }
 
+    function getRateIntervalAt(uint time) private pure returns (uint) {
+        return time % RATE_CHANGE_IN_SECONDS;
+    }
+
     function getCurrentRateInterval() private view returns (uint) {
-        uint currentTimestamp = block.timestamp;
-        uint currentInterval = currentTimestamp % RATE_CHANGE_IN_SECONDS;
-        return currentInterval;
+        return getRateIntervalAt(block.timestamp);
     }
 
     function transferToNewRates(address CPOaddress) private returns (bool) {
 
         CPO memory currentCPO = CPOs[CPOaddress];
 
-        if ( currentCPO.rateChangeDate <= block.timestamp ) {
-            currentCPO.historicalRates = currentCPO.rates;
+        if ( currentCPO.rate.changeDate != 0 && currentCPO.rate.changeDate <= block.timestamp ) {
+            currentCPO.rate.historical = currentCPO.rate.current;
 
-            currentCPO.rates = currentCPO.newRates;
-            currentCPO.rateStartDate = block.timestamp;
+            currentCPO.rate.current = currentCPO.rate.next;
+            currentCPO.rate.startDate = block.timestamp;
 
             uint[60] memory empty;
-            currentCPO.newRates = empty;
-            currentCPO.rateChangeDate = 0;
+            currentCPO.rate.next = empty;
+            currentCPO.rate.changeDate = 0;
 
             CPOs[CPOaddress] = currentCPO;
 
             return true;
         }
         return false;
+    }
+
+    function calculateChargeTimeInSeconds(uint charge, uint discharge, uint efficiency) private pure returns (uint) {
+        uint time = PRECISION * charge * 100 / (discharge * efficiency);
+        // Derived from: charge / (discharge * efficienct/100)
+
+        uint integerPart = time / PRECISION;
+        uint fractionalPart = time % PRECISION;
+
+        uint totalSeconds = integerPart * 60;
+        totalSeconds += fractionalPart * 60 / PRECISION;
+
+        return totalSeconds;
     }
 
     /*

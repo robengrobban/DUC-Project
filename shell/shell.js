@@ -10,6 +10,14 @@ await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
 
+if ( false ) {
+    console.log("DEBUG EV: ", await car.debugEV());
+    console.log("DEBUG CPO: ", await operator.debugCPO());
+    console.log("DEBUG CS: ", await station.debugCS());
+    console.log("DEBUG DEAL: ", await car.debugDeal(car.account.address, operator.account.address));
+    console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
+}
+
 if ( true ) {
     operator.contract.events.RegisteredCPO({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered CPO: ", log);
@@ -35,10 +43,6 @@ if ( true ) {
     console.log("EV status: " + await car.isRegistered() + " " + await car.isEV());
     console.log("CPO status: " + await operator.isRegistered() + " " + await operator.isCPO());
     console.log("CS status: " + await station.isRegistered() + " " + await station.isCS());
-
-    console.log("DEBUG EV: ", await car.debugEV());
-    console.log("DEBUG CPO: ", await operator.debugCPO());
-    console.log("DEBUG CS: ", await station.debugCS());
 }
 
 if ( true ) {
@@ -55,7 +59,7 @@ if ( true ) {
 
 if ( true ) {
     operator.contract.events.ProposedDeal({fromBlock: 'latest'}).on('data', log => {
-        console.log("New deal arrived: ", log);
+        console.log("New deal arrived: ", log.returnValues);
         console.log("ev: ", log.returnValues.ev);
         console.log("id: ", log.returnValues.deal.id);
         console.log("Answering deal...");
@@ -68,17 +72,14 @@ if ( true ) {
 
     console.log("Proposing deal...");
     await car.proposeDeal(operator.account.address);
-
-    console.log("DEBUG DEAL: ", await car.debugDeal(car.account.address, operator.account.address));
-
 }
 
 if ( true ) {
     station.contract.events.ConnectionMade({fromBlock: 'latest'}).on('data', log => {
-        console.log("CS got connection event: ", log);
+        console.log("CS got connection event: ", log.returnValues);
     });
     car.contract.events.ConnectionMade({fromBlock: 'latest'}).on('data', log => {
-        console.log("EV got connection event: ", log);
+        console.log("EV got connection event: ", log.returnValues);
     });
 
     let nonce = station.generateNonce();
@@ -87,8 +88,5 @@ if ( true ) {
     await station.connect(car.account.address, nonce);
     console.log("EV sends connection...");
     await car.connect(station.account.address, nonce);
-
-    console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
-
 }
 
