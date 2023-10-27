@@ -7,7 +7,7 @@ class CS extends Entity {
      */
 
     type = 2;
-    powerDischarge = 220000;
+    powerDischarge = 22000; // Watt output
 
     /**
      * Functions
@@ -29,7 +29,11 @@ class CS extends Entity {
     }
 
     async connect(EVaddress, nonce) {
-        return await this.contract.methods.connect(EVaddress, this.account.address, this.web3.utils.toBigInt(nonce)).send();
+        return await this.contract.methods.connect(
+            EVaddress, 
+            this.account.address,
+            this.web3.utils.toBigInt(nonce)
+        ).send();
     }
 
 }

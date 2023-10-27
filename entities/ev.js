@@ -7,8 +7,8 @@ class EV extends Entity {
      */
 
     model = 'Volvo C40'
-    currentCapacity = 39000;
-    maxCapacity = 78000;
+    currentCharge = 39000; // Watt Hours
+    maxCapacity = 78000; // Watt Hours
     batteryEfficiency = 0.9;
 
     /**
@@ -25,15 +25,38 @@ class EV extends Entity {
     }
 
     async register() {
-        return await this.contract.methods.registerEV(this.account.address, this.maxCapacity, (this.batteryEfficiency*100)).send();
+        return await this.contract.methods.registerEV(
+            this.account.address, 
+            this.wattHoursToWattSeconds(this.maxCapacity), 
+            (this.batteryEfficiency*100)
+        ).send();
     }
 
     async proposeDeal(CPOaddress) {
-        return await this.contract.methods.proposeDeal(this.account.address, CPOaddress).send();
+        return await this.contract.methods.proposeDeal(
+            this.account.address, 
+            CPOaddress
+        ).send();
     }
 
     async connect(CSaddress, nonce) {
-        return await this.contract.methods.connect(this.account.address, CSaddress, this.web3.utils.toBigInt(nonce)).send();
+        return await this.contract.methods.connect(
+            this.account.address, 
+            CSaddress, 
+            this.web3.utils.toBigInt(nonce)
+        ).send();
+    }
+
+    async estimateChargingPrice(CSaddress) {
+        return await this.contract.methods.estimateChargingPrice(
+            this.account.address, 
+            CSaddress, 
+            this.wattHoursToWattSeconds(this.currentCharge)
+        ).call();
+    }
+
+    wattHoursToWattSeconds(wattHours) {
+        return wattHours*3600;
     }
 
 }

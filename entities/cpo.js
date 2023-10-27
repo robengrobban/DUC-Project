@@ -7,6 +7,7 @@ class CPO extends Entity {
      */
 
     rateSlots = 60;
+    ratePrecision = 1000000000;
 
     /**
      * Functions
@@ -22,33 +23,47 @@ class CPO extends Entity {
     }
 
     async register() {
-        return await this.contract.methods.registerCPO(this.account.address).send();
+        return await this.contract.methods.registerCPO(
+            this.account.address
+        ).send();
     }
 
     async registerCS(CSaddress, powerDischarge) {
-        return await this.contract.methods.registerCS(this.account.address, CSaddress, powerDischarge).send();
+        return await this.contract.methods.registerCS(
+            this.account.address, 
+            CSaddress, 
+            powerDischarge
+        ).send();
     }
 
     async respondDeal(EVaddress, answer, id) {
-        return await this.contract.methods.respondDeal(this.account.address, EVaddress, answer, id).send();
+        return await this.contract.methods.respondDeal(
+            this.account.address, 
+            EVaddress, 
+            answer, 
+            id
+        ).send();
+    }
+
+    async registerNewRates(rates) {
+        return await this.contract.methods.setRates(
+            this.account.address, 
+            rates, 
+            this.ratePrecision
+        ).send();
     }
 
     generateRates() {
         let rates = [];
         for (let i = 0; i < this.rateSlots; i++) {
-            let precision = 1000000000;
-            let rate = this.web3.utils.toBigInt( Math.floor(this.priceKiloWattHoursToWattSeconds((-0.05*i**2 + 3*i + 5)*precision)) );
-            rates[i] = {value: rate, precision: precision};
+            //rates[i] = this.web3.utils.toBigInt( Math.floor(this.pricePerWattHoursToWattSeconds((-0.1*i**2 + 6*i + 5)*this.ratePrecision)) );
+            rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.001)*this.ratePrecision)+0.5 ));
         }
         return rates;
     }
 
-    priceKiloWattHoursToWattSeconds(rate) {
-        return rate / (1000 * 3600)
-    }
-
-    async registerNewRates(rates) {
-        return await this.contract.methods.setRates(this.account.address, rates).send();
+    pricePerWattHoursToWattSeconds(price) {
+        return price / 3600
     }
 
 }

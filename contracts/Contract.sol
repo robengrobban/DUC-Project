@@ -16,7 +16,7 @@ contract Contract {
                                                     // 3600 = rate change every hour (60 * 60)
                                                     // 86400 = rate change every day (60 * 60 * 24)
 
-    uint constant RATE_CHARGE_PERIOD = RATE_CHANGE_IN_SECONDS / RATE_SLOTS; // This gives how many seconds are in one rate charge period
+    uint constant RATE_SLOT_PERIOD = RATE_CHANGE_IN_SECONDS / RATE_SLOTS;   // This gives how many seconds are in one rate slot period
                                                                             // If rate changes every hour, and have a new price every minute
                                                                             // That means that there are 60 seconds to account for in each 
                                                                             // rate charging period.
@@ -26,7 +26,7 @@ contract Contract {
                                                                             // are the amount of seconds that needs to pass in order for the full charge
                                                                             // rate price to be accounted for. 
 
-    uint constant PRECISION = 10000;                 // Affects the precision on calculation, as they are all integer calulcations.
+    uint constant PRECISION = 1000000000;           // Affects the precision on calculation, as they are all integer calulcations.
     struct PrecisionNumber {
         uint value;
         uint precision;
@@ -41,13 +41,14 @@ contract Contract {
         Rate rate;
     }
     struct Rate {
-        PrecisionNumber[RATE_SLOTS] current; // Rate in Watt seconds
+        uint[RATE_SLOTS] current; // Rate in Watt seconds
         uint startDate; // The date when the rates was applied
+        uint precision; // The selected precision for Rates. (INT calculation)
 
-        PrecisionNumber[RATE_SLOTS] next; // The next scheduled rates
+        uint[RATE_SLOTS] next; // The next scheduled rates
         uint changeDate; // The date when the new rates are expected to change
 
-        PrecisionNumber[RATE_SLOTS] historical; // What the last rate was
+        uint[RATE_SLOTS] historical; // What the last rate was
     }
     struct CS {
         bool exist;
@@ -56,8 +57,7 @@ contract Contract {
     }
     struct EV {
         bool exist;
-        uint stateOfCharge; // Watt Minutes of charge
-        uint maxCapacity; // Watt Minutes of max charge
+        uint maxCapacity; // Watt Seconds of max charge
         uint batteryEfficiency; // Battery charge efficency (0-100)
     }
 
@@ -315,26 +315,31 @@ contract Contract {
 
     }
 
-    function setRates(address CPOaddress, PrecisionNumber[RATE_SLOTS] calldata rates) public {
+    function setRates(address CPOaddress, uint[RATE_SLOTS] calldata rates, uint ratePrecision) public {
         require(msg.sender == CPOaddress, "Sender must be the same as CPO address to add rates to");
         require(isCPO(CPOaddress), "CPO address must be registered CPO");
         require(rates.length == RATE_SLOTS, "Rates array must be in correct intervall");
+        require(ratePrecision >= 1000000000, "Rate precision must be at least 1000000000");
 
-        CPO memory currentCPO = CPOs[CPOaddress];
+        CPO memory cpo = CPOs[CPOaddress];
         // There are no current rates
-        if ( currentCPO.rate.current[0].value == 0 ) {
-            currentCPO.rate.startDate = block.timestamp;
-            currentCPO.rate.current = rates;
+        if ( cpo.rate.current[0] == 0 ) {
+            cpo.rate.startDate = block.timestamp;
+            cpo.rate.current = rates;
+            cpo.rate.precision = ratePrecision;
         }
         // There are existing rates.
         else {
-            currentCPO.rate.next = rates;
-            currentCPO.rate.changeDate = getNextRateChange();
+            if ( cpo.rate.precision != ratePrecision ) {
+                revert("Rate precision cannot be altered in new rates.");
+            }
+            cpo.rate.next = rates;
+            cpo.rate.changeDate = getNextRateChange();
         }
 
-        CPOs[CPOaddress] = currentCPO;
+        CPOs[CPOaddress] = cpo;
 
-        emit NewRates(CPOaddress, currentCPO);
+        emit NewRates(CPOaddress, cpo);
 
     }
 
@@ -342,7 +347,7 @@ contract Contract {
         return deposits[EVaddress];
     }
 
-    function estimateChargingPrice(address EVaddress, address CSaddress, uint currentCharge) public view returns (uint) {
+    function estimateChargingPrice(address EVaddress, address CSaddress, uint currentCharge) public view returns (PrecisionNumber memory) {
         require(msg.sender == EVaddress, "Sender must be EV address");
         require(isEV(EVaddress), "EV address must be registered EV");
         require(isCS(CSaddress), "CS address must be registered CS");
@@ -355,29 +360,42 @@ contract Contract {
         require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
         require(currentCharge < ev.maxCapacity && currentCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
 
+
         // Calculate charge time, and adjust it if the deal ends before fully charged.
         uint startTime = block.timestamp;
-        uint chargeTime = calculateChargeTimeInSeconds(currentCharge, cs.powerDischarge, ev.batteryEfficiency);
+        uint chargeTime = calculateChargeTimeInSeconds((ev.maxCapacity - currentCharge), cs.powerDischarge, ev.batteryEfficiency);
         uint dealTimeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
-        uint adjustedChargeTime = chargeTime > dealTimeLeft ? chargeTime - dealTimeLeft : chargeTime;
+        uint chargeTimeLeft = (chargeTime > dealTimeLeft) 
+                                ? chargeTime - dealTimeLeft 
+                                : chargeTime;
 
-        uint currentTime = startTime;
+        uint elapsedTime;
         uint totalCost;
-        while ( adjustedChargeTime > 0 ) {
+        while ( chargeTimeLeft > 0 ) {
             
-            uint currentRate = getRateIntervalAt(currentTime);
-            uint nextRateSlot = getNextRateSlot(currentTime);
+            uint currentTime = startTime + elapsedTime;
 
-            uint chargingTimeInSlot = nextRateSlot - currentTime;
+            uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
+            uint currentRate = (cpo.rate.changeDate != 0 && currentTime >= cpo.rate.changeDate) 
+                                ? cpo.rate.next[currentRateIndex]
+                                : cpo.rate.current[currentRateIndex];
+            
+            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
 
+            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTimeLeft
+                                            ? (nextRateSlot - currentTime) 
+                                            : chargeTimeLeft; // Seconds in this rate period.
 
+            totalCost += chargingTimeInSlot * currentRate * cs.powerDischarge;
+            chargeTimeLeft -= chargingTimeInSlot;
+            elapsedTime += chargingTimeInSlot;
 
         }
 
-
-
-
-
+        PrecisionNumber memory precisionTotalCost;
+        precisionTotalCost.precision = cpo.rate.precision;
+        precisionTotalCost.value = totalCost;
+        return precisionTotalCost;
     }
 
     function requestCharging(address EVaddress, address CSaddress) payable public {
@@ -423,12 +441,6 @@ contract Contract {
         return ev;
     }
 
-    function createPrecisionNumber() private pure returns (PrecisionNumber memory) {
-        PrecisionNumber memory number;
-        number.precision = PRECISION;
-        return number;
-    }
-
     function getNextDealId() private returns (uint) {
         nextDealId++;
         return nextDealId;
@@ -455,16 +467,12 @@ contract Contract {
     }
 
     function getNextRateSlot(uint currentTime) private pure returns (uint) {
-        uint secondsUntilRateChange = RATE_CHARGE_PERIOD - (currentTime % RATE_CHARGE_PERIOD);
+        uint secondsUntilRateChange = RATE_SLOT_PERIOD - (currentTime % RATE_SLOT_PERIOD);
         return currentTime + secondsUntilRateChange;
     }
 
-    function getRateIntervalAt(uint time) private pure returns (uint) {
-        return time % RATE_CHANGE_IN_SECONDS;
-    }
-
-    function getCurrentRateInterval() private view returns (uint) {
-        return getRateIntervalAt(block.timestamp);
+    function getRateSlot(uint time) private pure returns (uint) {
+        return (time / RATE_SLOT_PERIOD) % RATE_SLOTS;
     }
 
     function transferToNewRates(address CPOaddress) private returns (bool) {
@@ -477,7 +485,7 @@ contract Contract {
             currentCPO.rate.current = currentCPO.rate.next;
             currentCPO.rate.startDate = block.timestamp;
 
-            PrecisionNumber[60] memory empty;
+            uint[60] memory empty;
             currentCPO.rate.next = empty;
             currentCPO.rate.changeDate = 0;
 
@@ -489,16 +497,10 @@ contract Contract {
     }
 
     function calculateChargeTimeInSeconds(uint charge, uint discharge, uint efficiency) private pure returns (uint) {
-        uint time = PRECISION * charge * 100 / (discharge * efficiency);
+        uint secondsPrecision = PRECISION * charge * 100 / (discharge * efficiency);
         // Derived from: charge / (discharge * efficienct/100)
-
-        uint integerPart = time / PRECISION;
-        uint fractionalPart = time % PRECISION;
-
-        uint totalSeconds = integerPart * 60;
-        totalSeconds += fractionalPart * 60 / PRECISION;
-
-        return totalSeconds;
+        uint secondsRoundUp = (secondsPrecision+(PRECISION/2))/PRECISION;
+        return secondsRoundUp;
     }
 
     /*

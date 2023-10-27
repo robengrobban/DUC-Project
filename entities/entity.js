@@ -43,37 +43,59 @@ class Entity {
     }
 
     async isRegistered(address = this.account.address) {
-        return await this.contract.methods.isRegistered(address).call();
+        return await this.contract.methods.isRegistered(
+            address
+        ).call();
     }
     async isCPO(address = this.account.address) {
-        return await this.contract.methods.isCPO(address).call();
+        return await this.contract.methods.isCPO(
+            address
+        ).call();
     }
     async isCS(address = this.account.address) {
-        return await this.contract.methods.isCS(address).call();
+        return await this.contract.methods.isCS(
+            address
+        ).call();
     }
     async isEV(address = this.account.address) {
-        return await this.contract.methods.isEV(address).call();
+        return await this.contract.methods.isEV(
+            address
+        ).call();
     }
 
     async balance(address = this.account.address) {
-        return await this.web3.eth.getBalance(address);
+        return await this.web3.eth.getBalance(
+            address
+        );
     }
 
 
     async debugDeal(EVaddress, CPOaddress) {
-        return await this.contract.methods.debugDeal(EVaddress, CPOaddress).call();
+        return await this.contract.methods.debugDeal(
+            EVaddress, 
+            CPOaddress
+        ).call();
     }
     async debugConnection(EVaddress, CSaddress) {
-        return await this.contract.methods.debugConnection(EVaddress, CSaddress).call();
+        return await this.contract.methods.debugConnection(
+            EVaddress, 
+            CSaddress
+        ).call();
     }
     async debugEV(address = this.account.address) {
-        return await this.contract.methods.debugEV(address).call();
+        return await this.contract.methods.debugEV(
+            address
+        ).call();
     }
     async debugCS(address = this.account.address) {
-        return await this.contract.methods.debugCS(address).call();
+        return await this.contract.methods.debugCS(
+            address
+        ).call();
     }
     async debugCPO(address = this.account.address) {
-        return await this.contract.methods.debugCPO(address).call();
+        return await this.contract.methods.debugCPO(
+            address
+        ).call();
     }
 
 }
