@@ -36,9 +36,15 @@ class CPO extends Entity {
     generateRates() {
         let rates = [];
         for (let i = 0; i < this.rateSlots; i++) {
-            rates[i] = this.web3.utils.toBigInt( Math.floor(-0.05*i**2) + 3*i + 5 );
+            let precision = 1000000000;
+            let rate = this.web3.utils.toBigInt( Math.floor(this.priceKiloWattHoursToWattSeconds((-0.05*i**2 + 3*i + 5)*precision)) );
+            rates[i] = {value: rate, precision: precision};
         }
         return rates;
+    }
+
+    priceKiloWattHoursToWattSeconds(rate) {
+        return rate / (1000 * 3600)
     }
 
     async registerNewRates(rates) {

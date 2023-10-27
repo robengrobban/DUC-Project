@@ -10,6 +10,10 @@ await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
 
+console.log(operator.generateRates());
+
+process.exit();
+
 if ( false ) {
     console.log("DEBUG EV: ", await car.debugEV());
     console.log("DEBUG CPO: ", await operator.debugCPO());
