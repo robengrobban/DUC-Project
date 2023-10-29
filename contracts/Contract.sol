@@ -298,7 +298,7 @@ contract Contract {
 
     }
 
-    function disconnection(address EVaddress, address CSaddress) public {
+    function disconnect(address EVaddress, address CSaddress) public {
         require(msg.sender == EVaddress || msg.sender == CSaddress, "Sender must either be included EV/CS address");
         require(isEV(EVaddress), "EV address not registered EV");
         require(isCS(CSaddress), "CS address not registered CS");

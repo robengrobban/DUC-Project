@@ -47,6 +47,13 @@ class EV extends Entity {
         ).send();
     }
 
+    async disconnect(CSaddress) {
+        return await this.contract.methods.disconnect(
+            this.account.address,
+            CSaddress
+        ).send();
+    }
+
     async estimateChargingPrice(CSaddress) {
         return await this.contract.methods.estimateChargingPrice(
             this.account.address, 

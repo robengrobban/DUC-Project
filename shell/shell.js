@@ -18,7 +18,7 @@ if ( false ) {
     console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
 }
 
-if ( true ) {
+if ( false ) {
     // Register entities
     operator.contract.events.RegisteredCPO({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered CPO: ", log.returnValues);
@@ -40,7 +40,9 @@ if ( true ) {
     console.log("EV status: " + await car.isRegistered() + " " + await car.isEV());
     console.log("CPO status: " + await operator.isRegistered() + " " + await operator.isCPO());
     console.log("CS status: " + await station.isRegistered() + " " + await station.isCS());
+}
 
+if (false) {
     // Register rates
     operator.contract.events.NewRates({fromBlock: 'latest'}).on('data', log => {
         console.log("New rates: ", log.returnValues);
@@ -49,7 +51,8 @@ if ( true ) {
     console.log("Registring new rates...");
     let rates = operator.generateRates();
     await operator.registerNewRates(rates);
-
+}
+if (false) {
     // Propose deal
     operator.contract.events.ProposedDeal({fromBlock: 'latest'}).on('data', log => {
         console.log("New deal arrived: ", log.returnValues);
@@ -59,13 +62,14 @@ if ( true ) {
         operator.respondDeal(log.returnValues.ev, true, log.returnValues.deal.id);
     });
     car.contract.events.RespondDeal({fromBlock: 'latest'}).on('data', log => {
-        console.log("Response to deal: ", log);
+        console.log("Response to deal: ", log.returnValues);
         console.log("Accepted? ", log.returnValues.deal.accepted);
     });
 
     console.log("Proposing deal...");
     await car.proposeDeal(operator.account.address);
-
+}
+if (false) {
     // Make connection
     station.contract.events.ConnectionMade({fromBlock: 'latest'}).on('data', log => {
         console.log("CS got connection event: ", log.returnValues);
@@ -81,9 +85,20 @@ if ( true ) {
     console.log("EV sends connection...");
     await car.connect(station.account.address, nonce);
 }
+if (false) {
+    // Disconnect
+    station.contract.events.Disconnection({fromBlock: 'latest'}).on('data', log => {
+        console.log("CS disconnection event: ", log.returnValues);
+    });
+    car.contract.events.Disconnection({fromBlock: 'latest'}).on('data', log => {
+        console.log("EV disconnection event: ", log.returnValues);
+    });
 
-if ( false ) {
+    console.log("EV disconnecting from CS...");
+    await car.disconnect(station.account.address);
+}
 
+if (false) {
+    // Calculate charging price
     console.log(await car.estimateChargingPrice(station.account.address));
-
 }
