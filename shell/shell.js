@@ -10,7 +10,7 @@ await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
 
-if ( true ) {
+if ( false ) {
     console.log("DEBUG EV: ", await car.debugEV());
     console.log("DEBUG CPO: ", await operator.debugCPO());
     console.log("DEBUG CS: ", await station.debugCS());
@@ -18,7 +18,8 @@ if ( true ) {
     console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
 }
 
-if ( false ) {
+if ( true ) {
+    // Register entities
     operator.contract.events.RegisteredCPO({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered CPO: ", log.returnValues);
     });
@@ -40,15 +41,16 @@ if ( false ) {
     console.log("CPO status: " + await operator.isRegistered() + " " + await operator.isCPO());
     console.log("CS status: " + await station.isRegistered() + " " + await station.isCS());
 
+    // Register rates
     operator.contract.events.NewRates({fromBlock: 'latest'}).on('data', log => {
         console.log("New rates: ", log.returnValues);
     });
 
-    // Register rates
     console.log("Registring new rates...");
     let rates = operator.generateRates();
     await operator.registerNewRates(rates);
 
+    // Propose deal
     operator.contract.events.ProposedDeal({fromBlock: 'latest'}).on('data', log => {
         console.log("New deal arrived: ", log.returnValues);
         console.log("ev: ", log.returnValues.ev);
@@ -64,6 +66,7 @@ if ( false ) {
     console.log("Proposing deal...");
     await car.proposeDeal(operator.account.address);
 
+    // Make connection
     station.contract.events.ConnectionMade({fromBlock: 'latest'}).on('data', log => {
         console.log("CS got connection event: ", log.returnValues);
     });
