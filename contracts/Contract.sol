@@ -49,6 +49,7 @@ contract Contract {
         uint changeDate; // The date when the new rates are expected to change
 
         uint[RATE_SLOTS] historical; // What the last rate was
+        uint historicalDate; // When the rates in historical started
     }
     struct CS {
         bool exist;
@@ -321,6 +322,9 @@ contract Contract {
         require(rates.length == RATE_SLOTS, "Rates array must be in correct intervall");
         require(ratePrecision >= 1000000000, "Rate precision must be at least 1000000000");
 
+        // Transfer current rates if it is needed
+        transferToNewRates(CPOaddress);
+
         CPO memory cpo = CPOs[CPOaddress];
         // There are no current rates
         if ( cpo.rate.current[0] == 0 ) {
@@ -398,16 +402,97 @@ contract Contract {
         return precisionTotalCost;
     }
 
+    struct Historical {
+        uint startTime;
+        uint chargeTime;
+        uint dealAdjust;
+        uint rateCutoff;
+        uint timeAfterCharge;
+        PrecisionNumber value;
+    }
+    function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (Historical memory) {
+        require(msg.sender == EVaddress, "Sender must be EV address");
+        require(isEV(EVaddress), "EV address must be registered EV");
+        require(isCS(CSaddress), "CS address must be registered CS");
+        startTime = (startTime == 0) ? block.timestamp : startTime;
+
+        EV memory ev = EVs[EVaddress];
+        CS memory cs = CSs[CSaddress];
+        CPO memory cpo = CPOs[cs.cpo];
+
+        // Make sure that there is still a deal active, and that the car is not fully charged
+        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
+        require(startCharge < ev.maxCapacity && startCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
+
+
+        Historical memory historical;
+        historical.startTime = startTime;
+    
+
+        // Calculate charge time, and adjust it if the deal ends before fully charged.
+        uint chargeTime = calculateChargeTimeInSeconds((ev.maxCapacity - startCharge), cs.powerDischarge, ev.batteryEfficiency);
+        uint dealTimeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
+        uint chargeTimeLeft = (chargeTime > dealTimeLeft) 
+                                ? chargeTime - dealTimeLeft 
+                                : chargeTime;
+        historical.chargeTime = chargeTime;
+        historical.dealAdjust = chargeTimeLeft;
+
+        // Adjust if there is a upper time limit on rates
+        uint rateCutoff;
+        if ( cpo.rate.changeDate == 0 ) {
+            rateCutoff = getNextRateChangeAtTime(startTime);
+        }
+        else {
+            rateCutoff = getNextRateChangeAtTime(cpo.rate.changeDate);
+        }
+        uint rateTimeLeft = rateCutoff-startTime;
+        historical.timeAfterCharge = chargeTimeLeft - rateTimeLeft;
+        chargeTimeLeft = (chargeTimeLeft > rateTimeLeft)
+                                ? rateTimeLeft
+                                : chargeTimeLeft;
+        historical.rateCutoff = chargeTimeLeft;
+
+        uint elapsedTime;
+        uint totalCost;
+        while ( chargeTimeLeft > 0 ) {
+            
+            uint currentTime = startTime + elapsedTime;
+
+            uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
+            uint currentRate = (cpo.rate.changeDate != 0 && currentTime >= cpo.rate.changeDate) 
+                                ? cpo.rate.next[currentRateIndex]
+                                : cpo.rate.current[currentRateIndex];
+            
+            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
+
+            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTimeLeft
+                                            ? (nextRateSlot - currentTime) 
+                                            : chargeTimeLeft; // Seconds in this rate period.
+
+            totalCost += chargingTimeInSlot * currentRate * cs.powerDischarge;
+            chargeTimeLeft -= chargingTimeInSlot;
+            elapsedTime += chargingTimeInSlot;
+
+        }
+
+        PrecisionNumber memory precisionTotalCost;
+        precisionTotalCost.precision = cpo.rate.precision;
+        precisionTotalCost.value = totalCost;
+        historical.value = precisionTotalCost;
+        return historical;
+    }
+
     function requestCharging(address EVaddress, address CSaddress) payable public {
         require(msg.sender == EVaddress, "Sender must be EV address");
         require(isEV(EVaddress), "EV address must be registered EV");
         require(isCS(CSaddress), "CS address must be registered CS");
 
-        CS memory currentCS = CSs[CSaddress];
+        CS memory cs = CSs[CSaddress];
         
-        require(isDealActive(EVaddress, currentCS.cpo), "There is no deal between EV and CS CPO");
+        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
 
-        transferToNewRates(currentCS.cpo);
+        transferToNewRates(cs.cpo);
 
         // Calculate ChargingScheme
         uint deposit = msg.value;
@@ -461,9 +546,11 @@ contract Contract {
     }
 
     function getNextRateChange() private view returns (uint) {
-        uint currentTime = block.timestamp;
-        uint secondsUntilRateChange = RATE_CHANGE_IN_SECONDS - (currentTime % RATE_CHANGE_IN_SECONDS);
-        return currentTime + secondsUntilRateChange;
+        return getNextRateChangeAtTime(block.timestamp);
+    }
+    function getNextRateChangeAtTime(uint time) private pure returns (uint) {
+        uint secondsUntilRateChange = RATE_CHANGE_IN_SECONDS - (time % RATE_CHANGE_IN_SECONDS);
+        return time + secondsUntilRateChange;
     }
 
     function getNextRateSlot(uint currentTime) private pure returns (uint) {
@@ -477,19 +564,23 @@ contract Contract {
 
     function transferToNewRates(address CPOaddress) private returns (bool) {
 
-        CPO memory currentCPO = CPOs[CPOaddress];
+        CPO memory cpo = CPOs[CPOaddress];
 
-        if ( currentCPO.rate.changeDate != 0 && currentCPO.rate.changeDate <= block.timestamp ) {
-            currentCPO.rate.historical = currentCPO.rate.current;
+        if ( cpo.rate.current[0] == 0 || cpo.rate.next[0] == 0 ) {
+            return false;
+        }
+        if ( cpo.rate.changeDate != 0 && block.timestamp >= cpo.rate.changeDate ) {
+            cpo.rate.historical = cpo.rate.current;
+            cpo.rate.historicalDate = cpo.rate.startDate;
 
-            currentCPO.rate.current = currentCPO.rate.next;
-            currentCPO.rate.startDate = block.timestamp;
+            cpo.rate.current = cpo.rate.next;
+            cpo.rate.startDate = cpo.rate.changeDate;
 
             uint[60] memory empty;
-            currentCPO.rate.next = empty;
-            currentCPO.rate.changeDate = 0;
+            cpo.rate.next = empty;
+            cpo.rate.changeDate = 0;
 
-            CPOs[CPOaddress] = currentCPO;
+            CPOs[CPOaddress] = cpo;
 
             return true;
         }

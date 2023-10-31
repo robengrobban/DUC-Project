@@ -62,6 +62,15 @@ class EV extends Entity {
         ).call();
     }
 
+    async getChargingScheme(CSaddress) {
+        return await this.contract.methods.getChargingScheme(
+            this.account.address, 
+            CSaddress, 
+            0,
+            this.wattHoursToWattSeconds(this.currentCharge)
+        ).call();
+    }
+
     wattHoursToWattSeconds(wattHours) {
         return wattHours*3600;
     }

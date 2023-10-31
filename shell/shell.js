@@ -10,7 +10,7 @@ await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
 
-if ( false ) {
+if (false) {
     console.log("DEBUG EV: ", await car.debugEV());
     console.log("DEBUG CPO: ", await operator.debugCPO());
     console.log("DEBUG CS: ", await station.debugCS());
@@ -18,7 +18,7 @@ if ( false ) {
     console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
 }
 
-if ( false ) {
+if (false) {
     // Register entities
     operator.contract.events.RegisteredCPO({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered CPO: ", log.returnValues);
@@ -40,9 +40,7 @@ if ( false ) {
     console.log("EV status: " + await car.isRegistered() + " " + await car.isEV());
     console.log("CPO status: " + await operator.isRegistered() + " " + await operator.isCPO());
     console.log("CS status: " + await station.isRegistered() + " " + await station.isCS());
-}
 
-if (false) {
     // Register rates
     operator.contract.events.NewRates({fromBlock: 'latest'}).on('data', log => {
         console.log("New rates: ", log.returnValues);
@@ -51,8 +49,7 @@ if (false) {
     console.log("Registring new rates...");
     let rates = operator.generateRates();
     await operator.registerNewRates(rates);
-}
-if (false) {
+
     // Propose deal
     operator.contract.events.ProposedDeal({fromBlock: 'latest'}).on('data', log => {
         console.log("New deal arrived: ", log.returnValues);
@@ -68,8 +65,7 @@ if (false) {
 
     console.log("Proposing deal...");
     await car.proposeDeal(operator.account.address);
-}
-if (false) {
+
     // Make connection
     station.contract.events.ConnectionMade({fromBlock: 'latest'}).on('data', log => {
         console.log("CS got connection event: ", log.returnValues);
@@ -97,8 +93,18 @@ if (false) {
     console.log("EV disconnecting from CS...");
     await car.disconnect(station.account.address);
 }
+if (false) {
+    // Register rates
+    operator.contract.events.NewRates({fromBlock: 'latest'}).on('data', log => {
+        console.log("New rates: ", log.returnValues);
+    });
 
+    console.log("Registring new rates...");
+    let rates = operator.generateRates();
+    await operator.registerNewRates(rates);
+}
 if (false) {
     // Calculate charging price
     console.log(await car.estimateChargingPrice(station.account.address));
+    console.log(await car.getChargingScheme(station.account.address));
 }
