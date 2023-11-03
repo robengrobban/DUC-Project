@@ -86,6 +86,19 @@ contract Contract {
         bool EVconnected;
         bool CSconnected;
         uint establishedDate;
+        ChargingScheme scheme;
+    }
+    struct ChargingScheme {
+        uint startTime;
+        uint chargeTime;
+        uint endTime;
+        PrecisionNumber price;
+        ChargingSlot[RATE_SLOTS*2] slots;
+    }
+    struct ChargingSlot {
+        uint startTime;
+        uint chargeTime;
+        PrecisionNumber price;
     }
 
     mapping(address => uint) deposits; // EV deposits
@@ -402,15 +415,7 @@ contract Contract {
         return precisionTotalCost;
     }
 
-    struct Historical {
-        uint startTime;
-        uint chargeTime;
-        uint dealAdjust;
-        uint rateCutoff;
-        uint timeAfterCharge;
-        PrecisionNumber value;
-    }
-    function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (Historical memory) {
+    function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (ChargingScheme memory) {
         require(msg.sender == EVaddress, "Sender must be EV address");
         require(isEV(EVaddress), "EV address must be registered EV");
         require(isCS(CSaddress), "CS address must be registered CS");
@@ -424,38 +429,34 @@ contract Contract {
         require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
         require(startCharge < ev.maxCapacity && startCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
 
-
-        Historical memory historical;
-        historical.startTime = startTime;
-    
+        ChargingScheme memory scheme;
+        scheme.startTime = startTime;    
 
         // Calculate charge time, and adjust it if the deal ends before fully charged.
         uint chargeTime = calculateChargeTimeInSeconds((ev.maxCapacity - startCharge), cs.powerDischarge, ev.batteryEfficiency);
-        uint dealTimeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
-        uint chargeTimeLeft = (chargeTime > dealTimeLeft) 
-                                ? chargeTime - dealTimeLeft 
+        uint timeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
+        chargeTime = (chargeTime > timeLeft) 
+                                ? timeLeft 
                                 : chargeTime;
-        historical.chargeTime = chargeTime;
-        historical.dealAdjust = chargeTimeLeft;
 
         // Adjust if there is a upper time limit on rates
-        uint rateCutoff;
         if ( cpo.rate.changeDate == 0 ) {
-            rateCutoff = getNextRateChangeAtTime(startTime);
+            timeLeft = getNextRateChangeAtTime(startTime)-startTime;
         }
         else {
-            rateCutoff = getNextRateChangeAtTime(cpo.rate.changeDate);
+            timeLeft = getNextRateChangeAtTime(cpo.rate.changeDate)-startTime;
         }
-        uint rateTimeLeft = rateCutoff-startTime;
-        historical.timeAfterCharge = chargeTimeLeft - rateTimeLeft;
-        chargeTimeLeft = (chargeTimeLeft > rateTimeLeft)
-                                ? rateTimeLeft
-                                : chargeTimeLeft;
-        historical.rateCutoff = chargeTimeLeft;
+        chargeTime = (chargeTime > timeLeft)
+                                ? timeLeft
+                                : chargeTime;
+
+        scheme.chargeTime = chargeTime;
+        scheme.endTime = startTime + chargeTime;
 
         uint elapsedTime;
         uint totalCost;
-        while ( chargeTimeLeft > 0 ) {
+        uint index = 0;
+        while ( chargeTime > 0 ) {
             
             uint currentTime = startTime + elapsedTime;
 
@@ -466,21 +467,35 @@ contract Contract {
             
             uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
 
-            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTimeLeft
+            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTime
                                             ? (nextRateSlot - currentTime) 
-                                            : chargeTimeLeft; // Seconds in this rate period.
+                                            : chargeTime; // Seconds in this rate period.
 
-            totalCost += chargingTimeInSlot * currentRate * cs.powerDischarge;
-            chargeTimeLeft -= chargingTimeInSlot;
+            uint slotCost = chargingTimeInSlot * currentRate * cs.powerDischarge;
+            
+            totalCost += slotCost;
+            chargeTime -= chargingTimeInSlot;
             elapsedTime += chargingTimeInSlot;
 
+            ChargingSlot memory slot;
+            slot.startTime = currentTime;
+            slot.chargeTime = chargingTimeInSlot;
+
+            PrecisionNumber memory slotPrice;
+            slotPrice.precision = cpo.rate.precision;
+            slotPrice.value = slotCost;
+            slot.price = slotPrice;
+
+            scheme.slots[index] = slot;
+
+            index++;
         }
 
         PrecisionNumber memory precisionTotalCost;
         precisionTotalCost.precision = cpo.rate.precision;
         precisionTotalCost.value = totalCost;
-        historical.value = precisionTotalCost;
-        return historical;
+        scheme.price = precisionTotalCost;
+        return scheme;
     }
 
     function requestCharging(address EVaddress, address CSaddress) payable public {
