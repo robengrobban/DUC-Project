@@ -71,6 +71,22 @@ class EV extends Entity {
         ).call();
     }
 
+    async getDeposit() {
+        return await this.contract.methods.getDeposit(
+            this.account.address
+        ).call();
+    }
+    async addDeposit(value) {
+        return await this.contract.methods.addDeposit(
+            this.account.address
+        ).send({value: value});
+    }
+    async withdrawDeposit() {
+        return await this.contract.methods.withdrawDeposit(
+            this.account.address
+        ).send();
+    }
+
     wattHoursToWattSeconds(wattHours) {
         return wattHours*3600;
     }

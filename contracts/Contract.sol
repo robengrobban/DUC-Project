@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.21;
+pragma solidity ^0.8.22;
 
 contract Contract {
     
@@ -86,19 +86,20 @@ contract Contract {
         bool EVconnected;
         bool CSconnected;
         uint establishedDate;
-        ChargingScheme scheme;
     }
+
+    mapping(address => mapping(address => ChargingScheme)) chargingSchemes; // EV -> CS -> CharginScheme
+
     struct ChargingScheme {
+        bool accepted;
+        bool finished;
         uint startTime;
         uint chargeTime;
         uint endTime;
         PrecisionNumber price;
-        ChargingSlot[RATE_SLOTS*2] slots;
-    }
-    struct ChargingSlot {
-        uint startTime;
-        uint chargeTime;
-        PrecisionNumber price;
+        uint slotsUsed;
+        uint[RATE_SLOTS*2] durations;
+        uint[RATE_SLOTS*2] prices;
     }
 
     mapping(address => uint) deposits; // EV deposits
@@ -124,6 +125,11 @@ contract Contract {
     event Disconnection(address indexed ev, address indexed cs);
 
     event NewRates(address indexed cpo, CPO details);
+
+    event RequestCharging(address indexed ev, address indexed cs, uint startTime, uint startCharge);
+    event InssufficientDeposit(address indexed ev, address indexed cs);
+    event StartCharging(address indexed ev, address indexed cs, ChargingScheme scheme);
+    event StopCharging(address indexed ev, address indexed cs);
 
     /*
     * PUBLIC FUNCTIONS
@@ -360,14 +366,82 @@ contract Contract {
 
     }
 
+    function addDeposit(address EVaddress) public payable {
+        require(msg.sender == EVaddress, "Sender must be EV address.");
+        deposits[EVaddress] += msg.value;
+    }
+
     function getDeposit(address EVaddress) public view returns (uint) {
         return deposits[EVaddress];
     }
 
-    function estimateChargingPrice(address EVaddress, address CSaddress, uint currentCharge) public view returns (PrecisionNumber memory) {
+    function withdrawDeposit(address payable EVaddress) public {
+        require(msg.sender == EVaddress, "Sender must be EV address.");
+        EVaddress.transfer(deposits[EVaddress]);
+        deposits[EVaddress] = 0;
+    }
+
+    // TODO : Gör så att start time är ett krav att kanske vara i framtiden, så att man inte kan skicka ett startdatum som sedan passerar...
+    function requestCharging(address EVaddress, address CSaddress, uint startTime, uint startCharge) payable public {
         require(msg.sender == EVaddress, "Sender must be EV address");
         require(isEV(EVaddress), "EV address must be registered EV");
         require(isCS(CSaddress), "CS address must be registered CS");
+
+        CS memory cs = CSs[CSaddress];
+        
+        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
+        require(isConnected(EVaddress, CSaddress), "EV and CS must be confirmed connected");
+
+        // Calculate ChargingScheme
+        uint deposit = msg.value;
+        transferToNewRates(cs.cpo);
+        PrecisionNumber memory estimate = estimateChargingPrice(EVaddress, CSaddress, startTime, startCharge);
+
+        require(deposit*estimate.precision + deposits[EVaddress]*estimate.precision >= estimate.value, "Total deposit is incufficient");
+        
+        // Add to deposits
+        deposits[EVaddress] += deposit;
+
+        emit RequestCharging(EVaddress, CSaddress, startTime, startCharge);
+
+    }
+
+    function startCharging(address CSaddress, address EVaddress, uint startTime, uint startCharge) public {
+        require(msg.sender == CSaddress, "Sender must be CS address");
+        require(isCS(CSaddress), "CS address must be registered CS");
+        require(isEV(EVaddress), "EV address must be registered EV");
+
+        CS memory cs = CSs[CSaddress];
+
+        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
+        require(isConnected(EVaddress, CSaddress), "EV and CS must be confirmed connected");
+        
+        // Calculate actual scheme
+        transferToNewRates(cs.cpo);
+        ChargingScheme memory scheme = getChargingScheme(EVaddress, CSaddress, startTime, startCharge);
+
+        // Check funds
+        uint deposit = deposits[EVaddress];
+
+        bool sufficientFunds = deposit * scheme.price.precision >= scheme.price.value;
+        if ( !sufficientFunds ) {            
+            emit InssufficientDeposit(EVaddress, CSaddress);
+            revert("EV has inssufficient funds deposited");
+        }
+
+        // Everything good, start charging
+        scheme.accepted = true;
+        chargingSchemes[EVaddress][CSaddress] = scheme;
+
+        emit StartCharging(EVaddress, CSaddress, scheme);
+
+    }
+
+    function estimateChargingPrice(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (PrecisionNumber memory) {
+        require(msg.sender == EVaddress, "Sender must be EV address");
+        require(isEV(EVaddress), "EV address must be registered EV");
+        require(isCS(CSaddress), "CS address must be registered CS");
+        startTime = (startTime == 0) ? block.timestamp : startTime;
 
         EV memory ev = EVs[EVaddress];
         CS memory cs = CSs[CSaddress];
@@ -375,20 +449,29 @@ contract Contract {
 
         // Make sure that there is still a deal active, and that the car is not fully charged
         require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
-        require(currentCharge < ev.maxCapacity && currentCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
-
+        require(startCharge < ev.maxCapacity && startCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
 
         // Calculate charge time, and adjust it if the deal ends before fully charged.
-        uint startTime = block.timestamp;
-        uint chargeTime = calculateChargeTimeInSeconds((ev.maxCapacity - currentCharge), cs.powerDischarge, ev.batteryEfficiency);
-        uint dealTimeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
-        uint chargeTimeLeft = (chargeTime > dealTimeLeft) 
-                                ? chargeTime - dealTimeLeft 
+        uint chargeTime = calculateChargeTimeInSeconds((ev.maxCapacity - startCharge), cs.powerDischarge, ev.batteryEfficiency);
+        uint timeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
+        chargeTime = (chargeTime > timeLeft) 
+                                ? timeLeft 
+                                : chargeTime;
+
+        // Adjust if there is a upper time limit on rates
+        if ( cpo.rate.changeDate == 0 ) {
+            timeLeft = getNextRateChangeAtTime(startTime)-startTime;
+        }
+        else {
+            timeLeft = getNextRateChangeAtTime(cpo.rate.changeDate)-startTime;
+        }
+        chargeTime = (chargeTime > timeLeft)
+                                ? timeLeft
                                 : chargeTime;
 
         uint elapsedTime;
         uint totalCost;
-        while ( chargeTimeLeft > 0 ) {
+        while ( chargeTime > 0 ) {
             
             uint currentTime = startTime + elapsedTime;
 
@@ -399,12 +482,12 @@ contract Contract {
             
             uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
 
-            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTimeLeft
+            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTime
                                             ? (nextRateSlot - currentTime) 
-                                            : chargeTimeLeft; // Seconds in this rate period.
+                                            : chargeTime; // Seconds in this rate period.
 
             totalCost += chargingTimeInSlot * currentRate * cs.powerDischarge;
-            chargeTimeLeft -= chargingTimeInSlot;
+            chargeTime -= chargingTimeInSlot;
             elapsedTime += chargingTimeInSlot;
 
         }
@@ -477,16 +560,8 @@ contract Contract {
             chargeTime -= chargingTimeInSlot;
             elapsedTime += chargingTimeInSlot;
 
-            ChargingSlot memory slot;
-            slot.startTime = currentTime;
-            slot.chargeTime = chargingTimeInSlot;
-
-            PrecisionNumber memory slotPrice;
-            slotPrice.precision = cpo.rate.precision;
-            slotPrice.value = slotCost;
-            slot.price = slotPrice;
-
-            scheme.slots[index] = slot;
+            scheme.durations[index] = chargingTimeInSlot;
+            scheme.prices[index] = slotCost;
 
             index++;
         }
@@ -494,27 +569,11 @@ contract Contract {
         PrecisionNumber memory precisionTotalCost;
         precisionTotalCost.precision = cpo.rate.precision;
         precisionTotalCost.value = totalCost;
+
         scheme.price = precisionTotalCost;
+        scheme.slotsUsed = index;
+
         return scheme;
-    }
-
-    function requestCharging(address EVaddress, address CSaddress) payable public {
-        require(msg.sender == EVaddress, "Sender must be EV address");
-        require(isEV(EVaddress), "EV address must be registered EV");
-        require(isCS(CSaddress), "CS address must be registered CS");
-
-        CS memory cs = CSs[CSaddress];
-        
-        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
-
-        transferToNewRates(cs.cpo);
-
-        // Calculate ChargingScheme
-        uint deposit = msg.value;
-        uint totalPrice = 0;
-
-        require(deposit >= totalPrice, "Total deposit is incufficient");
-
     }
 
     /*
@@ -550,9 +609,13 @@ contract Contract {
         return deals[EVaddress][CPOaddress].accepted && deals[EVaddress][CPOaddress].endDate > block.timestamp;
     }
 
-    function removeDeal(address EVaddres, address CPOaddress) private {
+    function isConnected(address EVaddress, address CSaddress) private view returns (bool) {
+        return connections[EVaddress][CSaddress].EVconnected && connections[EVaddress][CSaddress].CSconnected;
+    }
+
+    function removeDeal(address EVaddress, address CPOaddress) private {
         Deal memory placeholder;
-        deals[EVaddres][CPOaddress] = placeholder;
+        deals[EVaddress][CPOaddress] = placeholder;
     }
 
     function removeConnection(address EVaddress, address CPOaddress) private {
@@ -631,6 +694,10 @@ contract Contract {
 
     function debugCPO(address CPOaddress) public view returns (CPO memory) {
         return CPOs[CPOaddress];
+    }
+
+    function debugChargingScheme(address EVaddress, address CSaddress) public view returns (ChargingScheme memory) {
+        return chargingSchemes[EVaddress][CSaddress];
     }
 
 }
