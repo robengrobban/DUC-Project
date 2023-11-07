@@ -603,11 +603,6 @@ contract Contract {
         uint slotsUsed;
         uint[RATE_SLOTS*2] durations;
         uint[RATE_SLOTS*2] prices;
-
-        uint[RATE_SLOTS*2] currentTime;
-        uint[RATE_SLOTS*2] currentRateIndex;
-        uint[RATE_SLOTS*2] currentRate;
-        uint[RATE_SLOTS*2] nextRateSlot;
     }
     function generateSchemeSlots(ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
         uint chargeTimeLeft = scheme.chargeTime;
@@ -618,17 +613,13 @@ contract Contract {
         while ( chargeTimeLeft > 0 && elapsedTime < scheme.maxTime ) {
             
             uint currentTime = startTime + elapsedTime;
-            scheme.currentTime[index] = currentTime;
 
             uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
-            scheme.currentRateIndex[index] = currentRateIndex;
             uint currentRate = (triplett.cpo.rate.changeDate != 0 && currentTime >= triplett.cpo.rate.changeDate) 
                                 ? triplett.cpo.rate.next[currentRateIndex]
                                 : triplett.cpo.rate.current[currentRateIndex];
-            scheme.currentRate[index] = currentRate;
             
             uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate slot starts.
-            scheme.nextRateSlot[index] = nextRateSlot;
 
             bool useSlot = shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address);
 
