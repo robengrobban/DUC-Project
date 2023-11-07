@@ -103,7 +103,7 @@ if (false) {
     let rates = operator.generateRates();
     await operator.registerNewRates(rates);
 }
-if (true) {
+if (false) {
     // Calculate charging price
     //console.log(await car.estimateChargingPrice(station.account.address));
     console.log(await car.getChargingScheme(station.account.address));

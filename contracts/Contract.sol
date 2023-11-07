@@ -66,7 +66,6 @@ contract Contract {
     }
 
     mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
-
     uint nextDealId = 0;
     struct Deal {
         uint id;
@@ -81,7 +80,6 @@ contract Contract {
     }
 
     mapping(address => mapping(address => Connection)) connections; // EV -> CS -> Connection
-
     struct Connection {
         uint nonce;
         address EV;
@@ -92,8 +90,19 @@ contract Contract {
     }
 
     mapping(address => mapping(address => ChargingScheme)) chargingSchemes; // EV -> CS -> CharginScheme
-
-    // Charging here
+    struct ChargingScheme {
+        bool accepted;
+        bool finished;
+        uint startTime;
+        uint chargeTime;
+        uint idleTime;
+        uint maxTime;
+        uint endTime;
+        PrecisionNumber price;
+        uint slotsUsed;
+        uint[RATE_SLOTS*2] durations;
+        uint[RATE_SLOTS*2] prices;
+    }
 
     mapping(address => uint) deposits; // EV deposits
 
@@ -590,19 +599,6 @@ contract Contract {
         scheme.slotsUsed = index;
 
         return scheme;*/
-    }
-    struct ChargingScheme {
-        bool accepted;
-        bool finished;
-        uint startTime;
-        uint chargeTime;
-        uint idleTime;
-        uint maxTime;
-        uint endTime;
-        PrecisionNumber price;
-        uint slotsUsed;
-        uint[RATE_SLOTS*2] durations;
-        uint[RATE_SLOTS*2] prices;
     }
     function generateSchemeSlots(ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
         uint chargeTimeLeft = scheme.chargeTime;
