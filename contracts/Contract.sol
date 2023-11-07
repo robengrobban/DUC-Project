@@ -38,6 +38,7 @@ contract Contract {
 
     struct CPO {
         bool exist;
+        address _address;
         Rate rate;
     }
     struct Rate {
@@ -53,11 +54,13 @@ contract Contract {
     }
     struct CS {
         bool exist;
+        address _address;
         uint powerDischarge; // Watt output
         address cpo; // Connection to what CPO
     }
     struct EV {
         bool exist;
+        address _address;
         uint maxCapacity; // Watt Seconds of max charge
         uint batteryEfficiency; // Battery charge efficency (0-100)
     }
@@ -73,7 +76,7 @@ contract Contract {
         uint startDate;
         uint endDate;
         bool onlyRewneableEnergy;
-        uint maxRate;
+        PrecisionNumber maxRate;
         bool allowSmartCharging;
     }
 
@@ -104,8 +107,14 @@ contract Contract {
 
     mapping(address => uint) deposits; // EV deposits
 
-
-    
+    /*
+    * Helper structs
+    */
+    struct Triplett {
+        EV ev;
+        CS cs;
+        CPO cpo;
+    }
 
     
 
@@ -152,7 +161,7 @@ contract Contract {
         require(CPOaddress == msg.sender, "Sender address must be the same as register address");
         require(!isRegistered(CPOaddress), "CPO already registered");
 
-        CPOs[CPOaddress] = createCPO();
+        CPOs[CPOaddress] = createCPO(CPOaddress);
 
         emit RegisteredCPO(CPOaddress);
     }
@@ -163,7 +172,7 @@ contract Contract {
         require(!isRegistered(CSaddress), "CS already registered");
         require(powerDischarge > 0, "Power discharg must be greater than 0");
 
-        CSs[CSaddress] = createCS(CPOaddress, powerDischarge);
+        CSs[CSaddress] = createCS(CSaddress, CPOaddress, powerDischarge);
 
         emit RegisteredCS(CSaddress, CPOaddress);
     }
@@ -174,7 +183,7 @@ contract Contract {
         require(maxCapacity != 0, "Max battery capacity cannot be set to 0");
         require(batteryEfficiency > 0 && batteryEfficiency < 100, "Battery efficiency must be between 0 and 100, but not be 0 or 100");
 
-        EVs[EVaddress] = createEV(maxCapacity, batteryEfficiency);
+        EVs[EVaddress] = createEV(EVaddress, maxCapacity, batteryEfficiency);
 
         emit RegisteredEV(EVaddress);
     }
@@ -192,13 +201,17 @@ contract Contract {
             revert("Accepted deal already exists");
         }
 
+        PrecisionNumber memory maxRate = PrecisionNumber({
+            value: 500,
+            precision: 1000000000
+        });
         Deal memory proposedDeal = Deal({
             id: getNextDealId(),
             EV: EVaddress,
             CPO: CPOaddress,
             accepted: false,
             onlyRewneableEnergy: false,
-            maxRate: 500,
+            maxRate: maxRate,
             allowSmartCharging: true,
             startDate: block.timestamp,
             endDate: block.timestamp + 1 days
@@ -554,14 +567,21 @@ contract Contract {
                                             ? (nextRateSlot - currentTime) 
                                             : chargeTime; // Seconds in this rate period.
 
-            uint slotCost = chargingTimeInSlot * currentRate * cs.powerDischarge;
-            
-            totalCost += slotCost;
-            chargeTime -= chargingTimeInSlot;
-            elapsedTime += chargingTimeInSlot;
+            // Check if slot is used (Max rate limit)
+            if ( shouldUseSlot(currentRate, EVaddress, cs.cpo ) ) {
+                uint slotCost = chargingTimeInSlot * currentRate * cs.powerDischarge;
 
-            scheme.durations[index] = chargingTimeInSlot;
-            scheme.prices[index] = slotCost;
+                totalCost += slotCost;
+                chargeTime -= chargingTimeInSlot;
+                elapsedTime += chargingTimeInSlot; 
+
+                scheme.durations[index] = chargingTimeInSlot;
+                scheme.prices[index] = slotCost;
+            }
+            else {
+                scheme.durations[index] = chargingTimeInSlot;
+                scheme.prices[index] = 0;
+            }
 
             index++;
         }
@@ -575,29 +595,98 @@ contract Contract {
 
         return scheme;
     }
+    function generateScheme(uint chargeTime, uint startTime, ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
+        uint elapsedTime;
+        uint totalCost;
+        uint index = 0;
+        while ( chargeTime > 0 ) {
+            
+            uint currentTime = startTime + elapsedTime;
+
+            uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
+            uint currentRate = (triplett.cpo.rate.changeDate != 0 && currentTime >= triplett.cpo.rate.changeDate) 
+                                ? triplett.cpo.rate.next[currentRateIndex]
+                                : triplett.cpo.rate.current[currentRateIndex];
+            
+            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
+
+            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTime
+                                            ? (nextRateSlot - currentTime) 
+                                            : chargeTime; // Seconds in this rate period.
+
+            // Check if slot is used (Max rate limit)
+            if ( shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address ) ) {
+                uint slotCost = chargingTimeInSlot * currentRate * triplett.cs.powerDischarge;
+
+                totalCost += slotCost;
+                chargeTime -= chargingTimeInSlot;
+                elapsedTime += chargingTimeInSlot; 
+
+                scheme.durations[index] = chargingTimeInSlot;
+                scheme.prices[index] = slotCost;
+            }
+            else {
+                scheme.durations[index] = chargingTimeInSlot;
+                scheme.prices[index] = 0;
+            }
+
+            index++;
+        }
+
+        PrecisionNumber memory precisionTotalCost;
+        precisionTotalCost.precision = triplett.cpo.rate.precision;
+        precisionTotalCost.value = totalCost;
+
+        scheme.price = precisionTotalCost;
+        scheme.slotsUsed = index;
+
+        return scheme;
+    }
 
     /*
     * PRIVATE FUNCTIONS
     */
 
-    function createCPO() private pure returns (CPO memory) {
+    function createCPO(address CPOaddress) private pure returns (CPO memory) {
         CPO memory cpo;
         cpo.exist = true;
+        cpo._address = CPOaddress;
         return cpo;
     }
-    function createCS(address CPOaddress, uint powerDischarge) private pure returns (CS memory) {
+    function getCPO(address CPOaddress) private view returns (CPO memory) {
+        return CPOs[CPOaddress];
+    }
+    function createCS(address CSaddress, address CPOaddress, uint powerDischarge) private pure returns (CS memory) {
         CS memory cs;
         cs.exist = true;
+        cs._address = CSaddress;
         cs.cpo = CPOaddress;
         cs.powerDischarge = powerDischarge;
         return cs;    
     }
-    function createEV(uint maxCapacitiy, uint batteryEfficiency) private pure returns (EV memory) {
+    function getCS(address CSaddress) private view returns (CS memory) {
+        return CSs[CSaddress];
+    }
+    function createEV(address EVaddress, uint maxCapacitiy, uint batteryEfficiency) private pure returns (EV memory) {
         EV memory ev;
         ev.exist = true;
+        ev._address = EVaddress;
         ev.maxCapacity = maxCapacitiy;
         ev.batteryEfficiency = batteryEfficiency;
         return ev;
+    }
+    function getEV(address EVaddress) private view returns (EV memory) {
+        return EVs[EVaddress];
+    }
+    function getTriplett(address EVaddress, address CSaddress, address CPOaddress) private view returns (Triplett memory) {
+        return Triplett({
+            ev: EVs[EVaddress],
+            cs: CSs[CSaddress],
+            cpo: CPOs[CPOaddress]
+        });
+    }
+    function getTriplett(address EVaddress, address CSaddress) private view returns (Triplett memory) {
+        return getTriplett(EVaddress, CSaddress, CSs[CSaddress].cpo);
     }
 
     function getNextDealId() private returns (uint) {
@@ -670,6 +759,34 @@ contract Contract {
         // Derived from: charge / (discharge * efficienct/100)
         uint secondsRoundUp = (secondsPrecision+(PRECISION/2))/PRECISION;
         return secondsRoundUp;
+    }
+
+    function shouldUseSlot(uint currentRate, address EVaddress, address CPOaddress) private view returns (bool) {
+        PrecisionNumber memory maxRate = deals[EVaddress][CPOaddress].maxRate;
+
+        uint CPOprecision = CPOs[CPOaddress].rate.precision;
+        PrecisionNumber memory slotRate = PrecisionNumber({
+            value: currentRate,
+            precision: CPOprecision
+        });
+        
+        (maxRate, slotRate) = paddPrecisionNumber(maxRate, slotRate);
+
+        return slotRate.value <= maxRate.value;
+    }
+
+    function paddPrecisionNumber(PrecisionNumber memory first, PrecisionNumber memory second) private pure returns (PrecisionNumber memory, PrecisionNumber memory) {
+        if ( first.precision > second.precision ) {
+            uint deltaPrecision = first.precision/second.precision;
+            second.value *= deltaPrecision;
+            second.precision *= deltaPrecision;
+        }
+        else {
+            uint deltaPrecision = second.precision/first.precision;
+            first.value *= deltaPrecision;
+            first.precision *= deltaPrecision;
+        }
+        return (first, second);
     }
 
     /*
