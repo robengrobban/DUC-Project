@@ -93,19 +93,7 @@ contract Contract {
 
     mapping(address => mapping(address => ChargingScheme)) chargingSchemes; // EV -> CS -> CharginScheme
 
-    struct ChargingScheme {
-        bool accepted;
-        bool finished;
-        uint startTime;
-        uint chargeTime;
-        uint idleTime;
-        uint timeLeft;
-        uint endTime;
-        PrecisionNumber price;
-        uint slotsUsed;
-        uint[RATE_SLOTS*2] durations;
-        uint[RATE_SLOTS*2] prices;
-    }
+    // Charging here
 
     mapping(address => uint) deposits; // EV deposits
 
@@ -535,17 +523,17 @@ contract Contract {
                                 : chargeTime;*/
 
         // Calculate maximum time left in charging
-        uint timeLeft = deals[EVaddress][T.cpo._address].endDate - startTime;
+        uint maxTime = deals[EVaddress][T.cpo._address].endDate - startTime;
         if ( T.cpo.rate.changeDate == 0 ) {
-            uint rateTime = getNextRateChangeAtTime(startTime) - startTime;
-            if ( rateTime < timeLeft ) {
-                timeLeft = rateTime;
+            uint temp = getNextRateChangeAtTime(startTime) - startTime;
+            if ( temp < maxTime ) {
+                maxTime = temp;
             }
         }
         else {
-            uint rateTime = getNextRateChangeAtTime(T.cpo.rate.changeDate) - startTime;
-            if ( rateTime < timeLeft ) {
-                timeLeft = rateTime;
+            uint temp = getNextRateChangeAtTime(T.cpo.rate.changeDate) - startTime;
+            if ( maxTime < temp ) {
+                temp = maxTime;
             }
         }
         /*chargeTime = (chargeTime > timeLeft)
@@ -553,7 +541,7 @@ contract Contract {
                                 : chargeTime;*/
 
         scheme.chargeTime = chargeTime;
-        scheme.timeLeft = timeLeft;
+        scheme.maxTime = maxTime;
         //scheme.endTime = startTime + chargeTime;
 
         return generateSchemeSlots(scheme, T);
@@ -603,40 +591,69 @@ contract Contract {
 
         return scheme;*/
     }
+    struct ChargingScheme {
+        bool accepted;
+        bool finished;
+        uint startTime;
+        uint chargeTime;
+        uint idleTime;
+        uint maxTime;
+        uint endTime;
+        PrecisionNumber price;
+        uint slotsUsed;
+        uint[RATE_SLOTS*2] durations;
+        uint[RATE_SLOTS*2] prices;
+
+        uint[RATE_SLOTS*2] currentTime;
+        uint[RATE_SLOTS*2] currentRateIndex;
+        uint[RATE_SLOTS*2] currentRate;
+        uint[RATE_SLOTS*2] nextRateSlot;
+    }
     function generateSchemeSlots(ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
         uint chargeTimeLeft = scheme.chargeTime;
         uint startTime = scheme.startTime;
         uint elapsedTime;
         uint totalCost;
         uint index = 0;
-        while ( chargeTimeLeft > 0 && startTime + elapsedTime < startTime + scheme.timeLeft ) {
+        while ( chargeTimeLeft > 0 && elapsedTime < scheme.maxTime ) {
             
             uint currentTime = startTime + elapsedTime;
+            scheme.currentTime[index] = currentTime;
 
             uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
+            scheme.currentRateIndex[index] = currentRateIndex;
             uint currentRate = (triplett.cpo.rate.changeDate != 0 && currentTime >= triplett.cpo.rate.changeDate) 
                                 ? triplett.cpo.rate.next[currentRateIndex]
                                 : triplett.cpo.rate.current[currentRateIndex];
+            scheme.currentRate[index] = currentRate;
             
-            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
+            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate slot starts.
+            scheme.nextRateSlot[index] = nextRateSlot;
 
-            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTimeLeft
-                                            ? (nextRateSlot - currentTime) 
-                                            : chargeTimeLeft; // Seconds in this rate period.
+            bool useSlot = shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address);
 
+            uint timeInSlot = nextRateSlot - currentTime;
+            
             // Check if slot is used (Max rate limit)
-            if ( !shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address ) ) {
+            if ( useSlot ) {
+                // If time in slot is bigger than charge left (needed), only charge time left is needed of slot time
+                timeInSlot = timeInSlot > chargeTimeLeft
+                                            ? chargeTimeLeft 
+                                            : timeInSlot; 
+            }
+            else {
                 currentRate = 0;
-                chargeTimeLeft += chargingTimeInSlot; // To offset the -= chargingTimeInSlot bellow, as we are not charging in this slot
+                chargeTimeLeft += timeInSlot; // To offset the -= chargingTimeInSlot bellow, as we are not charging in this slot
+                scheme.idleTime += timeInSlot;
             }
 
-            uint slotCost = chargingTimeInSlot * currentRate * triplett.cs.powerDischarge;
+            uint slotCost = timeInSlot * currentRate * triplett.cs.powerDischarge;
 
             totalCost += slotCost;
-            chargeTimeLeft -= chargingTimeInSlot;
-            elapsedTime += chargingTimeInSlot; 
+            chargeTimeLeft -= timeInSlot;
+            elapsedTime += timeInSlot; 
 
-            scheme.durations[index] = chargingTimeInSlot;
+            scheme.durations[index] = timeInSlot;
             scheme.prices[index] = slotCost;
 
             index++;
@@ -785,7 +802,10 @@ contract Contract {
         return slotRate.value <= maxRate.value;
     }
 
-    function paddPrecisionNumber(PrecisionNumber memory first, PrecisionNumber memory second) private pure returns (PrecisionNumber memory, PrecisionNumber memory) {
+    function paddPrecisionNumber(PrecisionNumber memory a, PrecisionNumber memory b) private pure returns (PrecisionNumber memory, PrecisionNumber memory) {
+        PrecisionNumber memory first = PrecisionNumber({value: a.value, precision: a.precision});
+        PrecisionNumber memory second = PrecisionNumber({value: b.value, precision: b.precision});
+        
         if ( first.precision > second.precision ) {
             uint deltaPrecision = first.precision/second.precision;
             second.value *= deltaPrecision;

@@ -7,8 +7,8 @@ class EV extends Entity {
      */
 
     model = 'Volvo C40'
-    currentCharge = 3900; // Watt Hours
-    maxCapacity = 7800; // Watt Hours
+    currentCharge = 390; // Watt Hours
+    maxCapacity = 780; // Watt Hours
     batteryEfficiency = 0.9;
 
     /**
