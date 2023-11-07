@@ -10,18 +10,6 @@ await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
 
-//await car.register();
-console.log(await car.balance());
-console.log(await car.getDeposit());
-await car.addDeposit();
-console.log(await car.balance());
-console.log(await car.getDeposit());
-await car.withdrawDeposit();
-console.log(await car.balance());
-console.log(await car.getDeposit());
-
-process.exit();
-
 if (false) {
     console.log("DEBUG EV: ", await car.debugEV());
     console.log("DEBUG CPO: ", await operator.debugCPO());
@@ -30,7 +18,7 @@ if (false) {
     console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
 }
 
-if (true) {
+if (false) {
     // Register entities
     operator.contract.events.RegisteredCPO({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered CPO: ", log.returnValues);
@@ -115,8 +103,8 @@ if (false) {
     let rates = operator.generateRates();
     await operator.registerNewRates(rates);
 }
-if (false) {
+if (true) {
     // Calculate charging price
-    console.log(await car.estimateChargingPrice(station.account.address));
+    //console.log(await car.estimateChargingPrice(station.account.address));
     console.log(await car.getChargingScheme(station.account.address));
 }

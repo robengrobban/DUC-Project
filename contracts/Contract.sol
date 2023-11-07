@@ -98,6 +98,8 @@ contract Contract {
         bool finished;
         uint startTime;
         uint chargeTime;
+        uint idleTime;
+        uint timeLeft;
         uint endTime;
         PrecisionNumber price;
         uint slotsUsed;
@@ -517,39 +519,45 @@ contract Contract {
         require(isCS(CSaddress), "CS address must be registered CS");
         startTime = (startTime == 0) ? block.timestamp : startTime;
 
-        EV memory ev = EVs[EVaddress];
-        CS memory cs = CSs[CSaddress];
-        CPO memory cpo = CPOs[cs.cpo];
+        Triplett memory T = getTriplett(EVaddress, CSaddress);
 
         // Make sure that there is still a deal active, and that the car is not fully charged
-        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
-        require(startCharge < ev.maxCapacity && startCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
+        require(isDealActive(EVaddress, T.cpo._address), "There is no deal between EV and CS CPO");
+        require(startCharge < T.ev.maxCapacity && startCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
 
         ChargingScheme memory scheme;
         scheme.startTime = startTime;    
 
-        // Calculate charge time, and adjust it if the deal ends before fully charged.
-        uint chargeTime = calculateChargeTimeInSeconds((ev.maxCapacity - startCharge), cs.powerDischarge, ev.batteryEfficiency);
-        uint timeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
-        chargeTime = (chargeTime > timeLeft) 
+        // Calculate charge time
+        uint chargeTime = calculateChargeTimeInSeconds((T.ev.maxCapacity - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
+        /*chargeTime = (chargeTime > timeLeft) 
                                 ? timeLeft 
-                                : chargeTime;
+                                : chargeTime;*/
 
-        // Adjust if there is a upper time limit on rates
-        if ( cpo.rate.changeDate == 0 ) {
-            timeLeft = getNextRateChangeAtTime(startTime)-startTime;
+        // Calculate maximum time left in charging
+        uint timeLeft = deals[EVaddress][T.cpo._address].endDate - startTime;
+        if ( T.cpo.rate.changeDate == 0 ) {
+            uint rateTime = getNextRateChangeAtTime(startTime) - startTime;
+            if ( rateTime < timeLeft ) {
+                timeLeft = rateTime;
+            }
         }
         else {
-            timeLeft = getNextRateChangeAtTime(cpo.rate.changeDate)-startTime;
+            uint rateTime = getNextRateChangeAtTime(T.cpo.rate.changeDate) - startTime;
+            if ( rateTime < timeLeft ) {
+                timeLeft = rateTime;
+            }
         }
-        chargeTime = (chargeTime > timeLeft)
+        /*chargeTime = (chargeTime > timeLeft)
                                 ? timeLeft
-                                : chargeTime;
+                                : chargeTime;*/
 
         scheme.chargeTime = chargeTime;
-        scheme.endTime = startTime + chargeTime;
+        scheme.timeLeft = timeLeft;
+        //scheme.endTime = startTime + chargeTime;
 
-        uint elapsedTime;
+        return generateSchemeSlots(scheme, T);
+        /*uint elapsedTime;
         uint totalCost;
         uint index = 0;
         while ( chargeTime > 0 ) {
@@ -557,9 +565,9 @@ contract Contract {
             uint currentTime = startTime + elapsedTime;
 
             uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
-            uint currentRate = (cpo.rate.changeDate != 0 && currentTime >= cpo.rate.changeDate) 
-                                ? cpo.rate.next[currentRateIndex]
-                                : cpo.rate.current[currentRateIndex];
+            uint currentRate = (T.cpo.rate.changeDate != 0 && currentTime >= T.cpo.rate.changeDate) 
+                                ? T.cpo.rate.next[currentRateIndex]
+                                : T.cpo.rate.current[currentRateIndex];
             
             uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
 
@@ -568,8 +576,8 @@ contract Contract {
                                             : chargeTime; // Seconds in this rate period.
 
             // Check if slot is used (Max rate limit)
-            if ( shouldUseSlot(currentRate, EVaddress, cs.cpo ) ) {
-                uint slotCost = chargingTimeInSlot * currentRate * cs.powerDischarge;
+            if ( shouldUseSlot(currentRate, EVaddress, T.cs.cpo ) ) {
+                uint slotCost = chargingTimeInSlot * currentRate * T.cs.powerDischarge;
 
                 totalCost += slotCost;
                 chargeTime -= chargingTimeInSlot;
@@ -587,19 +595,21 @@ contract Contract {
         }
 
         PrecisionNumber memory precisionTotalCost;
-        precisionTotalCost.precision = cpo.rate.precision;
+        precisionTotalCost.precision = T.cpo.rate.precision;
         precisionTotalCost.value = totalCost;
 
         scheme.price = precisionTotalCost;
         scheme.slotsUsed = index;
 
-        return scheme;
+        return scheme;*/
     }
-    function generateScheme(uint chargeTime, uint startTime, ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
+    function generateSchemeSlots(ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
+        uint chargeTimeLeft = scheme.chargeTime;
+        uint startTime = scheme.startTime;
         uint elapsedTime;
         uint totalCost;
         uint index = 0;
-        while ( chargeTime > 0 ) {
+        while ( chargeTimeLeft > 0 && startTime + elapsedTime < startTime + scheme.timeLeft ) {
             
             uint currentTime = startTime + elapsedTime;
 
@@ -610,25 +620,24 @@ contract Contract {
             
             uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
 
-            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTime
+            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTimeLeft
                                             ? (nextRateSlot - currentTime) 
-                                            : chargeTime; // Seconds in this rate period.
+                                            : chargeTimeLeft; // Seconds in this rate period.
 
             // Check if slot is used (Max rate limit)
-            if ( shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address ) ) {
-                uint slotCost = chargingTimeInSlot * currentRate * triplett.cs.powerDischarge;
-
-                totalCost += slotCost;
-                chargeTime -= chargingTimeInSlot;
-                elapsedTime += chargingTimeInSlot; 
-
-                scheme.durations[index] = chargingTimeInSlot;
-                scheme.prices[index] = slotCost;
+            if ( !shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address ) ) {
+                currentRate = 0;
+                chargeTimeLeft += chargingTimeInSlot; // To offset the -= chargingTimeInSlot bellow, as we are not charging in this slot
             }
-            else {
-                scheme.durations[index] = chargingTimeInSlot;
-                scheme.prices[index] = 0;
-            }
+
+            uint slotCost = chargingTimeInSlot * currentRate * triplett.cs.powerDischarge;
+
+            totalCost += slotCost;
+            chargeTimeLeft -= chargingTimeInSlot;
+            elapsedTime += chargingTimeInSlot; 
+
+            scheme.durations[index] = chargingTimeInSlot;
+            scheme.prices[index] = slotCost;
 
             index++;
         }
@@ -637,6 +646,7 @@ contract Contract {
         precisionTotalCost.precision = triplett.cpo.rate.precision;
         precisionTotalCost.value = totalCost;
 
+        scheme.endTime = startTime + elapsedTime;
         scheme.price = precisionTotalCost;
         scheme.slotsUsed = index;
 

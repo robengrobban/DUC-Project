@@ -57,7 +57,12 @@ class CPO extends Entity {
         let rates = [];
         for (let i = 0; i < this.rateSlots; i++) {
             //rates[i] = this.web3.utils.toBigInt( Math.floor(this.pricePerWattHoursToWattSeconds((-0.1*i**2 + 6*i + 5)*this.ratePrecision)) );
-            rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.001)*this.ratePrecision)+0.5 ));
+            if ( i % 2 == 0 ) {
+                rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.001)*this.ratePrecision)+0.5 ));
+            }
+            else {
+                rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.002)*this.ratePrecision)+0.5 ));
+            }
         }
         return rates;
     }

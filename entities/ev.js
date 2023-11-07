@@ -7,8 +7,8 @@ class EV extends Entity {
      */
 
     model = 'Volvo C40'
-    currentCharge = 39000; // Watt Hours
-    maxCapacity = 78000; // Watt Hours
+    currentCharge = 3900; // Watt Hours
+    maxCapacity = 7800; // Watt Hours
     batteryEfficiency = 0.9;
 
     /**
@@ -58,6 +58,7 @@ class EV extends Entity {
         return await this.contract.methods.estimateChargingPrice(
             this.account.address, 
             CSaddress, 
+            0,
             this.wattHoursToWattSeconds(this.currentCharge)
         ).call();
     }
