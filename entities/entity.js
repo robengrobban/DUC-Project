@@ -32,6 +32,10 @@ class Entity {
         this.web3.eth.defaultAccount = this.account.address;
     }
 
+    getTime() {
+        return Math.floor(Date.now() / 1000);
+    }
+
     async connectContract() {
         let abi = JSON.parse(await fs.readFile("contracts/Contract.abi", "utf-8"));
         let contract_address = await fs.readFile("contracts/Contract.address", "utf-8");
@@ -78,6 +82,12 @@ class Entity {
     }
     async debugConnection(EVaddress, CSaddress) {
         return await this.contract.methods.debugConnection(
+            EVaddress, 
+            CSaddress
+        ).call();
+    }
+    async debugChargingScheme(EVaddress, CSaddress) {
+        return await this.contract.methods.debugChargingScheme(
             EVaddress, 
             CSaddress
         ).call();

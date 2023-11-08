@@ -16,6 +16,7 @@ if (false) {
     console.log("DEBUG CS: ", await station.debugCS());
     console.log("DEBUG DEAL: ", await car.debugDeal(car.account.address, operator.account.address));
     console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
+    console.log("DEBUG CONNECTION: ", await car.debugChargingScheme(car.account.address, station.account.address));
 }
 
 if (false) {
@@ -51,12 +52,12 @@ if (false) {
     await operator.registerNewRates(rates);
 
     // Propose deal
-    operator.contract.events.ProposedDeal({fromBlock: 'latest'}).on('data', log => {
+    operator.contract.events.ProposedDeal({fromBlock: 'latest'}).on('data', async log => {
         console.log("New deal arrived: ", log.returnValues);
         console.log("ev: ", log.returnValues.ev);
         console.log("id: ", log.returnValues.deal.id);
         console.log("Answering deal...");
-        operator.respondDeal(log.returnValues.ev, true, log.returnValues.deal.id);
+        await operator.respondDeal(log.returnValues.ev, true, log.returnValues.deal.id);
     });
     car.contract.events.RespondDeal({fromBlock: 'latest'}).on('data', log => {
         console.log("Response to deal: ", log.returnValues);
@@ -107,4 +108,24 @@ if (false) {
     // Calculate charging price
     //console.log(await car.estimateChargingPrice(station.account.address));
     console.log(await car.getChargingScheme(station.account.address));
+}
+if ( false ) {
+    // Listenings
+    car.contract.events.StartCharging({fromBlock: 'latest'}).on('data', log => {
+        console.log("EV got start charging event ", log.returnValues);
+    });
+    station.contract.events.StartCharging({fromBlock: 'latest'}).on('data', log => {
+        console.log("CS got start charging event ", log.returnValues);
+    });
+    station.contract.events.RequestCharging({fromBlock: 'latest'}).on('data', async log => {
+        console.log("CS charging request ", log.returnValues);
+        let schemeId = log.returnValues.scheme.id;
+        let EVaddress = log.returnValues.ev;
+        console.log("CS is responding to charging request ", schemeId);
+        await station.startCharging(EVaddress, schemeId);
+    });
+
+    // Request charging
+    console.log("EV requests charging...");
+    await car.requestCharging(500, station.account.address, car.getTime() + 30);
 }

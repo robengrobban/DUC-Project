@@ -68,8 +68,19 @@ class EV extends Entity {
             this.account.address, 
             CSaddress, 
             0,
-            this.wattHoursToWattSeconds(this.currentCharge)
+            this.wattHoursToWattSeconds(this.currentCharge),
+            this.wattHoursToWattSeconds(this.maxCapacity)
         ).call();
+    }
+
+    async requestCharging(value, CSaddress, startTime, targetCharge = this.wattHoursToWattSeconds(this.maxCapacity)) {
+        return await this.contract.methods.requestCharging(
+            this.account.address,
+            CSaddress,
+            startTime,
+            this.wattHoursToWattSeconds(this.currentCharge),
+            targetCharge
+        ).send({value: value});
     }
 
     async getDeposit() {

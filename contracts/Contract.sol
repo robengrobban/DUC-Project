@@ -26,6 +26,9 @@ contract Contract {
                                                                             // are the amount of seconds that needs to pass in order for the full charge
                                                                             // rate price to be accounted for. 
 
+    uint constant WEI_FACTOR = 100;     // This says that the price to pay is per 100 WEI. Meaning, if the price gets calculated to 4.3, it would mean
+                                        // that 430 WEI is the price. Higher value will grant higher precision, but this works fine for testing.
+
     uint constant PRECISION = 1000000000;           // Affects the precision on calculation, as they are all integer calulcations.
     struct PrecisionNumber {
         uint value;
@@ -90,15 +93,21 @@ contract Contract {
     }
 
     mapping(address => mapping(address => ChargingScheme)) chargingSchemes; // EV -> CS -> CharginScheme
+    uint nextSchemeId = 0;
     struct ChargingScheme {
+        uint id;
         bool accepted;
         bool finished;
+        uint targetCharge;
+        uint startCharge;
         uint startTime;
         uint chargeTime;
         uint idleTime;
         uint maxTime;
         uint endTime;
+        uint finishTime;
         PrecisionNumber price;
+        uint priceInWei;
         uint slotsUsed;
         uint[RATE_SLOTS*2] durations;
         uint[RATE_SLOTS*2] prices;
@@ -134,8 +143,9 @@ contract Contract {
 
     event NewRates(address indexed cpo, CPO details);
 
-    event RequestCharging(address indexed ev, address indexed cs, uint startTime, uint startCharge);
+    event RequestCharging(address indexed ev, address indexed cs, ChargingScheme scheme);
     event InssufficientDeposit(address indexed ev, address indexed cs);
+    event ChargingSchemeTimeout(address indexed ev, address indexed cs, ChargingScheme scheme);
     event StartCharging(address indexed ev, address indexed cs, ChargingScheme scheme);
     event StopCharging(address indexed ev, address indexed cs);
 
@@ -393,60 +403,67 @@ contract Contract {
         deposits[EVaddress] = 0;
     }
 
-    // TODO : Gör så att start time är ett krav att kanske vara i framtiden, så att man inte kan skicka ett startdatum som sedan passerar...
-    function requestCharging(address EVaddress, address CSaddress, uint startTime, uint startCharge) payable public {
+    function requestCharging(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) payable public {
         require(msg.sender == EVaddress, "Sender must be EV address");
         require(isEV(EVaddress), "EV address must be registered EV");
         require(isCS(CSaddress), "CS address must be registered CS");
+        require(startTime >= block.timestamp, "Charging must be in the future");
 
         CS memory cs = CSs[CSaddress];
-        
+                
         require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
         require(isConnected(EVaddress, CSaddress), "EV and CS must be confirmed connected");
 
-        // Calculate ChargingScheme
-        uint deposit = msg.value;
-        transferToNewRates(cs.cpo);
-        PrecisionNumber memory estimate = estimateChargingPrice(EVaddress, CSaddress, startTime, startCharge);
+        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
+        require(!((scheme.accepted || scheme.finished) && !(scheme.accepted && scheme.finished)), "Scheme already exists and is in place and not finished");
 
-        require(deposit*estimate.precision + deposits[EVaddress]*estimate.precision >= estimate.value, "Total deposit is incufficient");
+        // Calculate ChargingScheme
+        transferToNewRates(cs.cpo);
+        scheme = getChargingScheme(EVaddress, CSaddress, startTime, startCharge, targetCharge);
+
+        uint moneyAvailable = msg.value + deposits[EVaddress];
+        uint moneyRequired = scheme.priceInWei;
+
+        require(moneyAvailable >= moneyRequired, "Total deposit is incufficient");
         
         // Add to deposits
-        deposits[EVaddress] += deposit;
+        deposits[EVaddress] += msg.value;
+        scheme.id = getNextSchemeId();
 
-        emit RequestCharging(EVaddress, CSaddress, startTime, startCharge);
+        // Add scheme to charging struct
+        chargingSchemes[EVaddress][CSaddress] = scheme;
 
+        emit RequestCharging(EVaddress, CSaddress, scheme);
     }
 
-    function startCharging(address CSaddress, address EVaddress, uint startTime, uint startCharge) public {
+    function startCharging(address CSaddress, address EVaddress, uint schemeId) public {
         require(msg.sender == CSaddress, "Sender must be CS address");
         require(isCS(CSaddress), "CS address must be registered CS");
         require(isEV(EVaddress), "EV address must be registered EV");
+        require(schemeId > 0, "Scheme ID must be bigger than 0");
 
         CS memory cs = CSs[CSaddress];
 
         require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
         require(isConnected(EVaddress, CSaddress), "EV and CS must be confirmed connected");
-        
-        // Calculate actual scheme
-        transferToNewRates(cs.cpo);
-        ChargingScheme memory scheme = getChargingScheme(EVaddress, CSaddress, startTime, startCharge);
 
-        // Check funds
-        uint deposit = deposits[EVaddress];
+        // Get scheme
+        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
+        require(scheme.id == schemeId, "The scheme ID provided is not the same as the registered charging scheme");
+        require(!((scheme.accepted || scheme.finished) && !(scheme.accepted && scheme.finished)), "Scheme already exists and is in place and not finished");
 
-        bool sufficientFunds = deposit * scheme.price.precision >= scheme.price.value;
-        if ( !sufficientFunds ) {            
-            emit InssufficientDeposit(EVaddress, CSaddress);
-            revert("EV has inssufficient funds deposited");
+        if ( scheme.startTime < block.timestamp ) {
+            emit ChargingSchemeTimeout(EVaddress, CSaddress, scheme);
+            ChargingScheme memory blank;
+            chargingSchemes[EVaddress][CSaddress] = blank;
+            revert("Charging scheme is to old and cannot be started.");
         }
 
-        // Everything good, start charging
+        // Everything good, assume that charging will start
         scheme.accepted = true;
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
         emit StartCharging(EVaddress, CSaddress, scheme);
-
     }
 
     function estimateChargingPrice(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (PrecisionNumber memory) {
@@ -510,7 +527,7 @@ contract Contract {
         return precisionTotalCost;
     }
 
-    function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (ChargingScheme memory) {
+    function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
         require(msg.sender == EVaddress, "Sender must be EV address");
         require(isEV(EVaddress), "EV address must be registered EV");
         require(isCS(CSaddress), "CS address must be registered CS");
@@ -521,12 +538,16 @@ contract Contract {
         // Make sure that there is still a deal active, and that the car is not fully charged
         require(isDealActive(EVaddress, T.cpo._address), "There is no deal between EV and CS CPO");
         require(startCharge < T.ev.maxCapacity && startCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
+        require(startCharge < targetCharge, "Current charge level must be less than targeted charge level");
+        require(targetCharge <= T.ev.maxCapacity, "Target charge level cannot be above cars charge level");
 
         ChargingScheme memory scheme;
+        scheme.startCharge = startCharge;
+        scheme.targetCharge = targetCharge;
         scheme.startTime = startTime;    
 
         // Calculate charge time
-        uint chargeTime = calculateChargeTimeInSeconds((T.ev.maxCapacity - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
+        uint chargeTime = calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
         /*chargeTime = (chargeTime > timeLeft) 
                                 ? timeLeft 
                                 : chargeTime;*/
@@ -600,62 +621,6 @@ contract Contract {
 
         return scheme;*/
     }
-    function generateSchemeSlots(ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
-        uint chargeTimeLeft = scheme.chargeTime;
-        uint startTime = scheme.startTime;
-        uint elapsedTime;
-        uint totalCost;
-        uint index = 0;
-        while ( chargeTimeLeft > 0 && elapsedTime < scheme.maxTime ) {
-            
-            uint currentTime = startTime + elapsedTime;
-
-            uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
-            uint currentRate = (triplett.cpo.rate.changeDate != 0 && currentTime >= triplett.cpo.rate.changeDate) 
-                                ? triplett.cpo.rate.next[currentRateIndex]
-                                : triplett.cpo.rate.current[currentRateIndex];
-            
-            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate slot starts.
-
-            bool useSlot = shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address);
-
-            uint timeInSlot = nextRateSlot - currentTime;
-            
-            // Check if slot is used (Max rate limit)
-            if ( useSlot ) {
-                // If time in slot is bigger than charge left (needed), only charge time left is needed of slot time
-                timeInSlot = timeInSlot > chargeTimeLeft
-                                            ? chargeTimeLeft 
-                                            : timeInSlot; 
-            }
-            else {
-                currentRate = 0;
-                chargeTimeLeft += timeInSlot; // To offset the -= chargingTimeInSlot bellow, as we are not charging in this slot
-                scheme.idleTime += timeInSlot;
-            }
-
-            uint slotCost = timeInSlot * currentRate * triplett.cs.powerDischarge;
-
-            totalCost += slotCost;
-            chargeTimeLeft -= timeInSlot;
-            elapsedTime += timeInSlot; 
-
-            scheme.durations[index] = timeInSlot;
-            scheme.prices[index] = slotCost;
-
-            index++;
-        }
-
-        PrecisionNumber memory precisionTotalCost;
-        precisionTotalCost.precision = triplett.cpo.rate.precision;
-        precisionTotalCost.value = totalCost;
-
-        scheme.endTime = startTime + elapsedTime;
-        scheme.price = precisionTotalCost;
-        scheme.slotsUsed = index;
-
-        return scheme;
-    }
 
     /*
     * PRIVATE FUNCTIONS
@@ -706,6 +671,11 @@ contract Contract {
     function getNextDealId() private returns (uint) {
         nextDealId++;
         return nextDealId;
+    }
+
+    function getNextSchemeId() private returns (uint) {
+        nextSchemeId++;
+        return nextSchemeId;
     }
 
     function isDealActive(address EVaddress, address CPOaddress) private view returns (bool) {
@@ -773,6 +743,68 @@ contract Contract {
         // Derived from: charge / (discharge * efficienct/100)
         uint secondsRoundUp = (secondsPrecision+(PRECISION/2))/PRECISION;
         return secondsRoundUp;
+    }
+
+    function priceToWei(PrecisionNumber memory price) private pure returns (uint) {
+        return ((price.value * WEI_FACTOR) + (price.precision/2)) / price.precision;
+    }
+
+    function generateSchemeSlots(ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
+        uint chargeTimeLeft = scheme.chargeTime;
+        uint startTime = scheme.startTime;
+        uint elapsedTime;
+        uint totalCost;
+        uint index = 0;
+        while ( chargeTimeLeft > 0 && elapsedTime < scheme.maxTime ) {
+            
+            uint currentTime = startTime + elapsedTime;
+
+            uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
+            uint currentRate = (triplett.cpo.rate.changeDate != 0 && currentTime >= triplett.cpo.rate.changeDate) 
+                                ? triplett.cpo.rate.next[currentRateIndex]
+                                : triplett.cpo.rate.current[currentRateIndex];
+            
+            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate slot starts.
+
+            bool useSlot = shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address);
+
+            uint timeInSlot = nextRateSlot - currentTime;
+            
+            // Check if slot is used (Max rate limit)
+            if ( useSlot ) {
+                // If time in slot is bigger than charge left (needed), only charge time left is needed of slot time
+                timeInSlot = timeInSlot > chargeTimeLeft
+                                            ? chargeTimeLeft 
+                                            : timeInSlot; 
+            }
+            else {
+                currentRate = 0;
+                chargeTimeLeft += timeInSlot; // To offset the -= chargingTimeInSlot bellow, as we are not charging in this slot
+                scheme.idleTime += timeInSlot;
+            }
+
+            uint slotCost = timeInSlot * currentRate * triplett.cs.powerDischarge;
+
+            totalCost += slotCost;
+            chargeTimeLeft -= timeInSlot;
+            elapsedTime += timeInSlot; 
+
+            scheme.durations[index] = timeInSlot;
+            scheme.prices[index] = slotCost;
+
+            index++;
+        }
+
+        PrecisionNumber memory precisionTotalCost;
+        precisionTotalCost.precision = triplett.cpo.rate.precision;
+        precisionTotalCost.value = totalCost;
+
+        scheme.endTime = startTime + elapsedTime;
+        scheme.price = precisionTotalCost;
+        scheme.priceInWei = priceToWei(precisionTotalCost);
+        scheme.slotsUsed = index;
+
+        return scheme;
     }
 
     function shouldUseSlot(uint currentRate, address EVaddress, address CPOaddress) private view returns (bool) {
