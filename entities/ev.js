@@ -83,6 +83,13 @@ class EV extends Entity {
         ).send({value: value});
     }
 
+    async stopCharging(CSaddress) {
+        return await this.contract.methods.stopCharging(
+            this.account.address,
+            CSaddress
+        ).send();
+    }
+
     async getDeposit() {
         return await this.contract.methods.getDeposit(
             this.account.address

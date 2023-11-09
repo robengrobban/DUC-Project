@@ -42,7 +42,8 @@ contract Contract {
     struct CPO {
         bool exist;
         address _address;
-        Rate rate;
+        bool useNordPoolRates;
+        Rate rate; // TODO : Rates must be subject to region, such as SE1,SE2,SE3,SE4
     }
     struct Rate {
         uint[RATE_SLOTS] current; // Rate in Watt seconds
@@ -108,6 +109,7 @@ contract Contract {
         uint finishTime;
         PrecisionNumber price;
         uint priceInWei;
+        uint finalPriceInWei;
         uint slotsUsed;
         uint[RATE_SLOTS*2] durations;
         uint[RATE_SLOTS*2] prices;
@@ -123,8 +125,6 @@ contract Contract {
         CS cs;
         CPO cpo;
     }
-
-    
 
     /*
     * EVENTS
@@ -147,7 +147,7 @@ contract Contract {
     event InssufficientDeposit(address indexed ev, address indexed cs);
     event ChargingSchemeTimeout(address indexed ev, address indexed cs, ChargingScheme scheme);
     event StartCharging(address indexed ev, address indexed cs, ChargingScheme scheme);
-    event StopCharging(address indexed ev, address indexed cs);
+    event StopCharging(address indexed ev, address indexed cs, ChargingScheme scheme, uint finalPriceInWei);
 
     /*
     * PUBLIC FUNCTIONS
@@ -355,6 +355,10 @@ contract Contract {
 
         emit Disconnection(EVaddress, CSaddress);
 
+        // Stop charging if charging is active
+        if ( isCharging(EVaddress, CSaddress) ) {
+            stopCharging(EVaddress, CSaddress); 
+        }
     }
 
     function setRates(address CPOaddress, uint[RATE_SLOTS] calldata rates, uint ratePrecision) public {
@@ -397,11 +401,11 @@ contract Contract {
         return deposits[EVaddress];
     }
 
-    function withdrawDeposit(address payable EVaddress) public {
+    /*function withdrawDeposit(address payable EVaddress) public {
         require(msg.sender == EVaddress, "Sender must be EV address.");
         EVaddress.transfer(deposits[EVaddress]);
         deposits[EVaddress] = 0;
-    }
+    }*/
 
     function requestCharging(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) payable public {
         require(msg.sender == EVaddress, "Sender must be EV address");
@@ -466,7 +470,80 @@ contract Contract {
         emit StartCharging(EVaddress, CSaddress, scheme);
     }
 
-    function estimateChargingPrice(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (PrecisionNumber memory) {
+    function stopCharging(address EVaddress, address CSaddress) public {
+        require(msg.sender == EVaddress || msg.sender == CSaddress, "Sender must be EV/CS");
+        require(isEV(EVaddress), "EV address must be registered EV");
+        require(isCS(CSaddress), "CS address must be registered CS");
+
+        Triplett memory t = getTriplett(EVaddress, CSaddress);
+
+        // Validate that there exists a charging scheme that has not yet finished
+        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
+        require(scheme.accepted && !scheme.finished, "Charging scheme is not accpted, or has already finished");
+
+        // Clamp time to fit into scheme
+        uint finishTime = block.timestamp;
+        if ( finishTime >= scheme.endTime ) {
+            finishTime = scheme.endTime;
+        }
+        else if ( finishTime < scheme.startTime ) {
+            finishTime = scheme.startTime;
+        }
+
+        // Transfer money
+        uint priceInWei = getChargingSchemeFinalPrice(scheme, finishTime);
+        payable(t.cpo._address).transfer(priceInWei);
+        deposits[EVaddress] -= priceInWei;
+
+        uint remaining = deposits[EVaddress];
+        payable(EVaddress).transfer(remaining);
+        deposits[EVaddress] -= remaining;
+
+        // Update scheme
+        scheme.finished = true;
+        scheme.finishTime = finishTime;
+        scheme.finalPriceInWei = priceInWei;
+        chargingSchemes[EVaddress][CSaddress] = scheme;
+
+        // Inform about charging scheme termination
+        emit StopCharging(EVaddress, CSaddress, scheme, priceInWei);
+
+    }
+    function getChargingSchemeFinalPrice(ChargingScheme memory scheme, uint finishTime) private pure returns (uint) {       
+        if ( scheme.endTime == finishTime ) {
+            return scheme.priceInWei;
+        }
+        else if ( scheme.startTime == finishTime ) {
+            return 0;
+        }
+
+        uint elapsedTime;
+        PrecisionNumber memory price;
+        price.precision = scheme.price.precision;
+
+        for ( uint i = 0; i < scheme.slotsUsed; i++ ) {
+           
+            uint currentTime = scheme.startTime + elapsedTime;
+
+            if ( currentTime >= finishTime ) {
+                break;
+            }
+
+            uint timeInSlot = scheme.durations[i];
+            timeInSlot = currentTime + timeInSlot > finishTime
+                            ? timeInSlot - (currentTime + timeInSlot - finishTime)
+                            : timeInSlot;
+
+            uint slotPrice = scheme.prices[i] * timeInSlot / scheme.durations[i];
+            price.value += slotPrice;
+            elapsedTime += timeInSlot;
+
+        }
+        return priceToWei(price);
+
+    }
+
+    /*function estimateChargingPrice(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (PrecisionNumber memory) {
         require(msg.sender == EVaddress, "Sender must be EV address");
         require(isEV(EVaddress), "EV address must be registered EV");
         require(isCS(CSaddress), "CS address must be registered CS");
@@ -525,7 +602,7 @@ contract Contract {
         precisionTotalCost.precision = cpo.rate.precision;
         precisionTotalCost.value = totalCost;
         return precisionTotalCost;
-    }
+    }*/
 
     function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
         require(msg.sender == EVaddress, "Sender must be EV address");
@@ -544,7 +621,7 @@ contract Contract {
         ChargingScheme memory scheme;
         scheme.startCharge = startCharge;
         scheme.targetCharge = targetCharge;
-        scheme.startTime = startTime;    
+        scheme.startTime = startTime;
 
         // Calculate charge time
         uint chargeTime = calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
@@ -684,6 +761,10 @@ contract Contract {
 
     function isConnected(address EVaddress, address CSaddress) private view returns (bool) {
         return connections[EVaddress][CSaddress].EVconnected && connections[EVaddress][CSaddress].CSconnected;
+    }
+
+    function isCharging(address EVaddress, address CSaddress) private view returns (bool) {
+        return chargingSchemes[EVaddress][CSaddress].accepted && !chargingSchemes[EVaddress][CSaddress].finished;
     }
 
     function removeDeal(address EVaddress, address CPOaddress) private {

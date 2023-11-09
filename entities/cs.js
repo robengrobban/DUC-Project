@@ -44,6 +44,13 @@ class CS extends Entity {
         ).send();
     }
 
+    async stopCharging(EVaddress) {
+        return await this.contract.methods.stopCharging(
+            EVaddress,
+            this.account.address
+        ).send();
+    }
+
 }
 
 export { CS }

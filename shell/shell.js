@@ -16,7 +16,10 @@ if (false) {
     console.log("DEBUG CS: ", await station.debugCS());
     console.log("DEBUG DEAL: ", await car.debugDeal(car.account.address, operator.account.address));
     console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
-    console.log("DEBUG CONNECTION: ", await car.debugChargingScheme(car.account.address, station.account.address));
+    console.log("DEBUG CHARGING SCHEME: ", await car.debugChargingScheme(car.account.address, station.account.address));
+    console.log("EV MONEY: ", await car.balance());
+    console.log("EV DEPOSIT: ", await car.getDeposit());
+    console.log("CPO MONEY: ", await operator.balance());
 }
 
 if (false) {
@@ -109,7 +112,7 @@ if (false) {
     //console.log(await car.estimateChargingPrice(station.account.address));
     console.log(await car.getChargingScheme(station.account.address));
 }
-if ( false ) {
+if (false) {
     // Listenings
     car.contract.events.StartCharging({fromBlock: 'latest'}).on('data', log => {
         console.log("EV got start charging event ", log.returnValues);
@@ -118,6 +121,7 @@ if ( false ) {
         console.log("CS got start charging event ", log.returnValues);
     });
     station.contract.events.RequestCharging({fromBlock: 'latest'}).on('data', async log => {
+        // Start charging
         console.log("CS charging request ", log.returnValues);
         let schemeId = log.returnValues.scheme.id;
         let EVaddress = log.returnValues.ev;
@@ -128,4 +132,21 @@ if ( false ) {
     // Request charging
     console.log("EV requests charging...");
     await car.requestCharging(500, station.account.address, car.getTime() + 30);
+}
+if (false) {
+    // Listenings
+    car.contract.events.StopCharging({fromBlock: 'latest'}).on('data', log => {
+        console.log("EV got stop charging event ", log.returnValues);
+    });
+    station.contract.events.StopCharging({fromBlock: 'latest'}).on('data', log => {
+        console.log("CS got stop charging event ", log.returnValues);
+    });
+    car.contract.events.HistoryEvent({fromBlock: 'latest'}).on('data', log => {
+        console.log("EV history event ", log.returnValues);
+    });
+
+    // Stop charging
+    console.log("EV stops charging...");
+    console.log(car.getTime());
+    await car.stopCharging(station.account.address);
 }
