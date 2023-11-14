@@ -97,8 +97,10 @@ contract Contract {
     uint nextSchemeId = 0;
     struct ChargingScheme {
         uint id;
-        bool accepted;
+        bool EVaccepted;
+        bool CSaccepted;
         bool finished;
+        bool smartCharging;
         uint targetCharge;
         uint startCharge;
         uint startTime;
@@ -130,24 +132,24 @@ contract Contract {
     * EVENTS
     */
 
-    event RegisteredCPO(address cpo);
-    event RegisteredCS(address cs, address cpo);
-    event RegisteredEV(address ev);
+    event CPORegistered(address cpo);
+    event CSRegistered(address cs, address cpo);
+    event EVRegistered(address ev);
 
-    event ProposedDeal(address indexed ev, address indexed cpo, Deal deal);
-    event RevertProposedDeal(address indexed ev, address indexed cpo, Deal deal);
-    event RespondDeal(address indexed ev, address indexed cpo, bool accepted, Deal deal);
+    event DealProposed(address indexed ev, address indexed cpo, Deal deal);
+    event DealProposalReverted(address indexed ev, address indexed cpo, Deal deal);
+    event DealResponded(address indexed ev, address indexed cpo, bool accepted, Deal deal);
 
     event ConnectionMade(address indexed ev, address indexed cs, Connection connection);
     event Disconnection(address indexed ev, address indexed cs);
 
     event NewRates(address indexed cpo, CPO details);
 
-    event RequestCharging(address indexed ev, address indexed cs, ChargingScheme scheme);
+    event ChargingRequested(address indexed ev, address indexed cs, ChargingScheme scheme);
     event InssufficientDeposit(address indexed ev, address indexed cs);
     event ChargingSchemeTimeout(address indexed ev, address indexed cs, ChargingScheme scheme);
-    event StartCharging(address indexed ev, address indexed cs, ChargingScheme scheme);
-    event StopCharging(address indexed ev, address indexed cs, ChargingScheme scheme, uint finalPriceInWei);
+    event ChargingAcknowledged(address indexed ev, address indexed cs, ChargingScheme scheme);
+    event ChargingStopped(address indexed ev, address indexed cs, ChargingScheme scheme, uint finalPriceInWei);
 
     /*
     * PUBLIC FUNCTIONS
@@ -172,7 +174,7 @@ contract Contract {
 
         CPOs[CPOaddress] = createCPO(CPOaddress);
 
-        emit RegisteredCPO(CPOaddress);
+        emit CPORegistered(CPOaddress);
     }
 
     function registerCS(address CPOaddress, address CSaddress, uint powerDischarge) public {
@@ -183,7 +185,7 @@ contract Contract {
 
         CSs[CSaddress] = createCS(CSaddress, CPOaddress, powerDischarge);
 
-        emit RegisteredCS(CSaddress, CPOaddress);
+        emit CSRegistered(CSaddress, CPOaddress);
     }
 
     function registerEV(address EVaddress, uint maxCapacity, uint batteryEfficiency) public {
@@ -194,7 +196,7 @@ contract Contract {
 
         EVs[EVaddress] = createEV(EVaddress, maxCapacity, batteryEfficiency);
 
-        emit RegisteredEV(EVaddress);
+        emit EVRegistered(EVaddress);
     }
 
     function proposeDeal(address EVaddress, address CPOaddress) public {
@@ -228,7 +230,7 @@ contract Contract {
 
         deals[EVaddress][CPOaddress] = proposedDeal;
 
-        emit ProposedDeal(EVaddress, CPOaddress, proposedDeal);
+        emit DealProposed(EVaddress, CPOaddress, proposedDeal);
 
     }
 
@@ -250,7 +252,7 @@ contract Contract {
 
         removeDeal(EVaddress, CPOaddress);
 
-        emit RevertProposedDeal(EVaddress, CPOaddress, proposedDeal);
+        emit DealProposalReverted(EVaddress, CPOaddress, proposedDeal);
 
     }
 
@@ -279,7 +281,7 @@ contract Contract {
             deals[EVaddress][CPOaddress] = proposedDeal;
         }
 
-        emit RespondDeal(EVaddress, CPOaddress, accepted, proposedDeal);
+        emit DealResponded(EVaddress, CPOaddress, accepted, proposedDeal);
 
     }
 
@@ -419,7 +421,7 @@ contract Contract {
         require(isConnected(EVaddress, CSaddress), "EV and CS must be confirmed connected");
 
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
-        require(!((scheme.accepted || scheme.finished) && !(scheme.accepted && scheme.finished)), "Scheme already exists and is in place and not finished");
+        require(!isCharging(EVaddress, CSaddress), "Scheme already exists and is in place and not finished");
 
         // Calculate ChargingScheme
         transferToNewRates(cs.cpo);
@@ -435,12 +437,13 @@ contract Contract {
         scheme.id = getNextSchemeId();
 
         // Add scheme to charging struct
+        scheme.EVaccepted = true;
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
-        emit RequestCharging(EVaddress, CSaddress, scheme);
+        emit ChargingRequested(EVaddress, CSaddress, scheme);
     }
 
-    function startCharging(address CSaddress, address EVaddress, uint schemeId) public {
+    function acknowledgeCharging(address CSaddress, address EVaddress, uint schemeId) public {
         require(msg.sender == CSaddress, "Sender must be CS address");
         require(isCS(CSaddress), "CS address must be registered CS");
         require(isEV(EVaddress), "EV address must be registered EV");
@@ -454,7 +457,7 @@ contract Contract {
         // Get scheme
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
         require(scheme.id == schemeId, "The scheme ID provided is not the same as the registered charging scheme");
-        require(!((scheme.accepted || scheme.finished) && !(scheme.accepted && scheme.finished)), "Scheme already exists and is in place and not finished");
+        require(!isCharging(EVaddress, CSaddress), "Scheme already exists and is in place and not finished");
 
         if ( scheme.startTime < block.timestamp ) {
             emit ChargingSchemeTimeout(EVaddress, CSaddress, scheme);
@@ -464,10 +467,10 @@ contract Contract {
         }
 
         // Everything good, assume that charging will start
-        scheme.accepted = true;
+        scheme.CSaccepted = true;
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
-        emit StartCharging(EVaddress, CSaddress, scheme);
+        emit ChargingAcknowledged(EVaddress, CSaddress, scheme);
     }
 
     function stopCharging(address EVaddress, address CSaddress) public {
@@ -479,7 +482,7 @@ contract Contract {
 
         // Validate that there exists a charging scheme that has not yet finished
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
-        require(scheme.accepted && !scheme.finished, "Charging scheme is not accpted, or has already finished");
+        require(isCharging(EVaddress, CSaddress), "Charging scheme is not accepted, or has already finished");
 
         // Clamp time to fit into scheme
         uint finishTime = block.timestamp;
@@ -495,6 +498,7 @@ contract Contract {
         payable(t.cpo._address).transfer(priceInWei);
         deposits[EVaddress] -= priceInWei;
 
+        // Deposits kickback
         uint remaining = deposits[EVaddress];
         payable(EVaddress).transfer(remaining);
         deposits[EVaddress] -= remaining;
@@ -506,7 +510,7 @@ contract Contract {
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
         // Inform about charging scheme termination
-        emit StopCharging(EVaddress, CSaddress, scheme, priceInWei);
+        emit ChargingStopped(EVaddress, CSaddress, scheme, priceInWei);
 
     }
     function getChargingSchemeFinalPrice(ChargingScheme memory scheme, uint finishTime) private pure returns (uint) {       
@@ -539,6 +543,7 @@ contract Contract {
             elapsedTime += timeInSlot;
 
         }
+
         return priceToWei(price);
 
     }
@@ -709,9 +714,7 @@ contract Contract {
         cpo._address = CPOaddress;
         return cpo;
     }
-    function getCPO(address CPOaddress) private view returns (CPO memory) {
-        return CPOs[CPOaddress];
-    }
+
     function createCS(address CSaddress, address CPOaddress, uint powerDischarge) private pure returns (CS memory) {
         CS memory cs;
         cs.exist = true;
@@ -720,9 +723,7 @@ contract Contract {
         cs.powerDischarge = powerDischarge;
         return cs;    
     }
-    function getCS(address CSaddress) private view returns (CS memory) {
-        return CSs[CSaddress];
-    }
+
     function createEV(address EVaddress, uint maxCapacitiy, uint batteryEfficiency) private pure returns (EV memory) {
         EV memory ev;
         ev.exist = true;
@@ -731,9 +732,7 @@ contract Contract {
         ev.batteryEfficiency = batteryEfficiency;
         return ev;
     }
-    function getEV(address EVaddress) private view returns (EV memory) {
-        return EVs[EVaddress];
-    }
+
     function getTriplett(address EVaddress, address CSaddress, address CPOaddress) private view returns (Triplett memory) {
         return Triplett({
             ev: EVs[EVaddress],
@@ -764,7 +763,14 @@ contract Contract {
     }
 
     function isCharging(address EVaddress, address CSaddress) private view returns (bool) {
-        return chargingSchemes[EVaddress][CSaddress].accepted && !chargingSchemes[EVaddress][CSaddress].finished;
+        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
+        return scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
+        //return ((scheme.accepted || scheme.finished) && !(scheme.accepted && scheme.finished));
+        //return chargingSchemes[EVaddress][CSaddress].accepted && !chargingSchemes[EVaddress][CSaddress].finished;
+    }
+    function isSmartCharging(address EVaddress, address CSaddress) private view returns (bool) {
+        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
+        return scheme.smartCharging && scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
     }
 
     function removeDeal(address EVaddress, address CPOaddress) private {

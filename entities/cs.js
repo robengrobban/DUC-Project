@@ -13,10 +13,9 @@ class CS extends Entity {
      * Functions
      */
     
-    constructor() {
-        // address = 0x2C2C18Fe7E216447231198E039d2997615620eD7
+    constructor(secret) {
         super(
-            '0x59fe2715b3dae7ea659aa4d4466d1dbeda7f1d7835fbace6c0da14c303018d30', // secret
+            secret, // secret
             'ws://192.168.174.131:8546' // network
         )
         
@@ -36,8 +35,8 @@ class CS extends Entity {
         ).send();
     }
 
-    async startCharging(EVaddress, schemeId) {
-        return await this.contract.methods.startCharging(
+    async acknowledgeCharging(EVaddress, schemeId) {
+        return await this.contract.methods.acknowledgeCharging(
             this.account.address,
             EVaddress,
             schemeId

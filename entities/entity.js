@@ -36,6 +36,12 @@ class Entity {
         return Math.floor(Date.now() / 1000);
     }
 
+    listen(event) {
+        return this.contract.events[event]({
+            fromBlock: 'latest'
+        });
+    }
+
     async connectContract() {
         let abi = JSON.parse(await fs.readFile("contracts/Contract.abi", "utf-8"));
         let contract_address = await fs.readFile("contracts/Contract.address", "utf-8");

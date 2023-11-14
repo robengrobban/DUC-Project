@@ -2,9 +2,9 @@ import { EV } from '../entities/ev.js';
 import { CS } from '../entities/cs.js';
 import { CPO } from '../entities/cpo.js';
 
-const car = new EV();
-const station = new CS();
-const operator = new CPO();
+const car = new EV('0xd0a5e7b124eb5c1d327f7c19c988bb57979637043e52db48683da62900973b96');
+const station = new CS('0x59fe2715b3dae7ea659aa4d4466d1dbeda7f1d7835fbace6c0da14c303018d30');
+const operator = new CPO('0x7efa5e9cc6abc293f1f11072ea93c57c2ae5ecc4dc358ef77d9d2c6c9d9b6ab7');
 
 await car.connectContract();
 await station.connectContract();
@@ -24,13 +24,13 @@ if (false) {
 
 if (false) {
     // Register entities
-    operator.contract.events.RegisteredCPO({fromBlock: 'latest'}).on('data', log => {
+    operator.contract.events.CPORegistered({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered CPO: ", log.returnValues);
     });
-    station.contract.events.RegisteredCS({fromBlock: 'latest'}).on('data', log => {
+    station.contract.events.CSRegistered({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered CS: ", log.returnValues);
     });
-    car.contract.events.RegisteredEV({fromBlock: 'latest'}).on('data', log => {
+    car.contract.events.EVRegistered({fromBlock: 'latest'}).on('data', log => {
         console.log("Newly registered EV: ", log.returnValues);
     });
 
@@ -55,14 +55,14 @@ if (false) {
     await operator.registerNewRates(rates);
 
     // Propose deal
-    operator.contract.events.ProposedDeal({fromBlock: 'latest'}).on('data', async log => {
+    operator.contract.events.DealProposed({fromBlock: 'latest'}).on('data', async log => {
         console.log("New deal arrived: ", log.returnValues);
         console.log("ev: ", log.returnValues.ev);
         console.log("id: ", log.returnValues.deal.id);
         console.log("Answering deal...");
         await operator.respondDeal(log.returnValues.ev, true, log.returnValues.deal.id);
     });
-    car.contract.events.RespondDeal({fromBlock: 'latest'}).on('data', log => {
+    car.contract.events.DealResponded({fromBlock: 'latest'}).on('data', log => {
         console.log("Response to deal: ", log.returnValues);
         console.log("Accepted? ", log.returnValues.deal.accepted);
     });
@@ -114,19 +114,19 @@ if (false) {
 }
 if (false) {
     // Listenings
-    car.contract.events.StartCharging({fromBlock: 'latest'}).on('data', log => {
+    car.contract.events.ChargingAcknowledged({fromBlock: 'latest'}).on('data', log => {
         console.log("EV got start charging event ", log.returnValues);
     });
-    station.contract.events.StartCharging({fromBlock: 'latest'}).on('data', log => {
+    station.contract.events.ChargingAcknowledged({fromBlock: 'latest'}).on('data', log => {
         console.log("CS got start charging event ", log.returnValues);
     });
-    station.contract.events.RequestCharging({fromBlock: 'latest'}).on('data', async log => {
+    station.contract.events.ChargingRequested({fromBlock: 'latest'}).on('data', async log => {
         // Start charging
         console.log("CS charging request ", log.returnValues);
         let schemeId = log.returnValues.scheme.id;
         let EVaddress = log.returnValues.ev;
         console.log("CS is responding to charging request ", schemeId);
-        await station.startCharging(EVaddress, schemeId);
+        await station.acknowledgeCharging(EVaddress, schemeId);
     });
 
     // Request charging
@@ -135,14 +135,14 @@ if (false) {
 }
 if (false) {
     // Listenings
-    car.contract.events.StopCharging({fromBlock: 'latest'}).on('data', log => {
+    car.contract.events.ChargingStopped({fromBlock: 'latest'}).on('data', log => {
         console.log("EV got stop charging event ", log.returnValues);
     });
-    station.contract.events.StopCharging({fromBlock: 'latest'}).on('data', log => {
+    station.contract.events.ChargingStopped({fromBlock: 'latest'}).on('data', log => {
         console.log("CS got stop charging event ", log.returnValues);
     });
-    car.contract.events.HistoryEvent({fromBlock: 'latest'}).on('data', log => {
-        console.log("EV history event ", log.returnValues);
+    car.contract.events.HistoryHappened({fromBlock: 'latest'}).on('data', log => {
+        console.log("History: ", log.returnValues);
     });
 
     // Stop charging

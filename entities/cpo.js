@@ -6,6 +6,7 @@ class CPO extends Entity {
      * Variables
      */
 
+    name = "Vattenfall"
     rateSlots = 60;
     ratePrecision = 1000000000;
 
@@ -13,10 +14,9 @@ class CPO extends Entity {
      * Functions
      */
 
-    constructor() {
-        // address = 0x6388ECbB1e5A73B7c25747227613c1c1fE6C2D53
+    constructor(secret) {
         super(
-            '0x7efa5e9cc6abc293f1f11072ea93c57c2ae5ecc4dc358ef77d9d2c6c9d9b6ab7', // secret
+            secret, // secret
             'ws://192.168.174.129:8546' // network
         )
         
