@@ -6,7 +6,7 @@ class CPO extends Entity {
      * Variables
      */
 
-    name = "Vattenfall"
+    name = "VTNFL"
     rateSlots = 60;
     ratePrecision = 1000000000;
 
@@ -24,7 +24,8 @@ class CPO extends Entity {
 
     async register() {
         return await this.contract.methods.registerCPO(
-            this.account.address
+            this.account.address,
+            this.web3.utils.fromAscii(this.name)
         ).send();
     }
 

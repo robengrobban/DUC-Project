@@ -36,9 +36,10 @@ class Entity {
         return Math.floor(Date.now() / 1000);
     }
 
-    listen(event) {
+    listen(event, filter = {}) {
         return this.contract.events[event]({
-            fromBlock: 'latest'
+            fromBlock: 'latest',
+            filter: filter
         });
     }
 

@@ -41,11 +41,14 @@ contract Contract {
 
     struct CPO {
         bool exist;
+        bytes5 name;
         address _address;
         bool useNordPoolRates;
         Rate rate; // TODO : Rates must be subject to region, such as SE1,SE2,SE3,SE4
     }
     struct Rate {
+        bytes3 region;
+
         uint[RATE_SLOTS] current; // Rate in Watt seconds
         uint startDate; // The date when the rates was applied
         uint precision; // The selected precision for Rates. (INT calculation)
@@ -168,20 +171,21 @@ contract Contract {
         return EVs[target].exist;
     }
 
-    function registerCPO(address CPOaddress) public {
-        require(CPOaddress == msg.sender, "Sender address must be the same as register address");
-        require(!isRegistered(CPOaddress), "CPO already registered");
+    function registerCPO(address CPOaddress, bytes5 name) public {
+        require(CPOaddress == msg.sender, "203");
+        require(!isRegistered(CPOaddress), "201");
+        require(name.length != 0, "204");
 
-        CPOs[CPOaddress] = createCPO(CPOaddress);
+        CPOs[CPOaddress] = createCPO(CPOaddress, name);
 
         emit CPORegistered(CPOaddress);
     }
 
     function registerCS(address CPOaddress, address CSaddress, uint powerDischarge) public {
-        require(CPOaddress == msg.sender, "Sender address must be the same as register address");
-        require(isCPO(CPOaddress), "Sender is not a CPO");
-        require(!isRegistered(CSaddress), "CS already registered");
-        require(powerDischarge > 0, "Power discharg must be greater than 0");
+        require(CPOaddress == msg.sender, "303");
+        require(isCPO(CPOaddress), "202");
+        require(!isRegistered(CSaddress), "301");
+        require(powerDischarge > 0, "304");
 
         CSs[CSaddress] = createCS(CSaddress, CPOaddress, powerDischarge);
 
@@ -189,10 +193,10 @@ contract Contract {
     }
 
     function registerEV(address EVaddress, uint maxCapacity, uint batteryEfficiency) public {
-        require(EVaddress == msg.sender, "Sender address must be the same as register address");
-        require(!isRegistered(EVaddress), "EV already registered");
-        require(maxCapacity != 0, "Max battery capacity cannot be set to 0");
-        require(batteryEfficiency > 0 && batteryEfficiency < 100, "Battery efficiency must be between 0 and 100, but not be 0 or 100");
+        require(EVaddress == msg.sender, "403");
+        require(!isRegistered(EVaddress), "401");
+        require(maxCapacity != 0, "404");
+        require(batteryEfficiency > 0 && batteryEfficiency < 100, "405");
 
         EVs[EVaddress] = createEV(EVaddress, maxCapacity, batteryEfficiency);
 
@@ -200,16 +204,16 @@ contract Contract {
     }
 
     function proposeDeal(address EVaddress, address CPOaddress) public {
-        require(EVaddress == msg.sender, "Sender address must be the same as EV address");
-        require(isEV(EVaddress), "EV address not registered EV");
-        require(isCPO(CPOaddress), "CPO address not registered CPO");
+        require(EVaddress == msg.sender, "102");
+        require(isEV(EVaddress), "402");
+        require(isCPO(CPOaddress), "203");
 
         Deal memory currentDeal = deals[EVaddress][CPOaddress];
         if ( currentDeal.EV != address(0) && !currentDeal.accepted && currentDeal.endDate > block.timestamp ) {
-            revert("Deal already proposed, waiting response");
+            revert("501");
         }
         else if ( isDealActive(EVaddress, CPOaddress) ) {
-            revert("Accepted deal already exists");
+            revert("502");
         }
 
         PrecisionNumber memory maxRate = PrecisionNumber({
@@ -235,19 +239,19 @@ contract Contract {
     }
 
     function revertProposedDeal(address EVaddress, address CPOaddress, uint dealId) public {
-        require(EVaddress == msg.sender, "Sender address must be the same as EV address");
-        require(isEV(EVaddress), "EV address not registered EV");
-        require(isCPO(CPOaddress), "CPO address not registered CPO");
+        require(EVaddress == msg.sender, "402");
+        require(isEV(EVaddress), "403");
+        require(isCPO(CPOaddress), "203");
 
         Deal memory proposedDeal = deals[EVaddress][CPOaddress];
         if ( proposedDeal.EV == address(0) ) {
-            revert("Deal does not exist");
+            revert("503");
         }
         else if ( proposedDeal.accepted ) {
-            revert("Deal already accepted");
+            revert("504");
         }
         else if ( proposedDeal.id != dealId ) {
-            revert("Wrong deal ID, proposed deal might have changed");
+            revert("505");
         }
 
         removeDeal(EVaddress, CPOaddress);
@@ -257,19 +261,19 @@ contract Contract {
     }
 
     function respondDeal(address CPOaddress, address EVaddress, bool accepted, uint dealId) public {
-        require(CPOaddress == msg.sender, "Sender address must be the same as CPO address");
-        require(isCPO(CPOaddress), "CPO address not registered CPO");
-        require(isEV(EVaddress), "EV address not registered EV");
+        require(CPOaddress == msg.sender, "202");
+        require(isCPO(CPOaddress), "203");
+        require(isEV(EVaddress), "403");
 
         Deal memory proposedDeal = deals[EVaddress][CPOaddress];
         if ( proposedDeal.EV == address(0) ) {
-            revert("Deal does not exist");
+            revert("503");
         }
         else if ( proposedDeal.accepted ) {
-            revert("Deal already accepted");
+            revert("504");
         }
         else if ( proposedDeal.id != dealId ) {
-            revert("Wrong deal ID, proposed deal might have changed");
+            revert("505");
         }
 
         proposedDeal.accepted = accepted;
@@ -286,22 +290,22 @@ contract Contract {
     }
 
     function connect(address EVaddress, address CSaddress, uint nonce) public {
-        require(msg.sender == EVaddress || msg.sender == CSaddress, "Sender must either be included EV/CS address");
-        require(isEV(EVaddress), "EV address not registered EV");
-        require(isCS(CSaddress), "CS address not registered CS");
-        require(nonce != 0, "Nonce cannot be 0");
+        require(msg.sender == EVaddress || msg.sender == CSaddress, "402/302");
+        require(isEV(EVaddress), "403");
+        require(isCS(CSaddress), "303");
+        require(nonce != 0, "601");
 
         // Check if connection exists
         Connection memory currentConnection = connections[EVaddress][CSaddress];
         if ( currentConnection.EVconnected && currentConnection.CSconnected ) {
-            revert("Connection already established");
+            revert("602");
         }
 
         if ( msg.sender == EVaddress ) {
 
             // Check if connection is pending
             if ( currentConnection.nonce == nonce && currentConnection.EVconnected ) {
-                revert("Connection is waiting for response from CS party");
+                revert("603");
             }
 
             currentConnection.nonce = nonce;
@@ -322,7 +326,7 @@ contract Contract {
 
             // Check if connection is pending
             if ( currentConnection.nonce == nonce && currentConnection.CSconnected ) {
-                revert("Connection is waiting for response from EV party");
+                revert("604");
             }
 
             currentConnection.nonce = nonce;
@@ -343,14 +347,14 @@ contract Contract {
     }
 
     function disconnect(address EVaddress, address CSaddress) public {
-        require(msg.sender == EVaddress || msg.sender == CSaddress, "Sender must either be included EV/CS address");
-        require(isEV(EVaddress), "EV address not registered EV");
-        require(isCS(CSaddress), "CS address not registered CS");
+        require(msg.sender == EVaddress || msg.sender == CSaddress, "402/302");
+        require(isEV(EVaddress), "403");
+        require(isCS(CSaddress), "303");
 
         // Check that there exists a connection
         Connection memory currentConnection = connections[EVaddress][CSaddress];
         if ( !(currentConnection.EVconnected && currentConnection.CSconnected ) ) {
-            revert("No active connection exists");
+            revert("605");
         }
 
         removeConnection(EVaddress, CSaddress);
@@ -364,10 +368,10 @@ contract Contract {
     }
 
     function setRates(address CPOaddress, uint[RATE_SLOTS] calldata rates, uint ratePrecision) public {
-        require(msg.sender == CPOaddress, "Sender must be the same as CPO address to add rates to");
-        require(isCPO(CPOaddress), "CPO address must be registered CPO");
-        require(rates.length == RATE_SLOTS, "Rates array must be in correct intervall");
-        require(ratePrecision >= 1000000000, "Rate precision must be at least 1000000000");
+        require(msg.sender == CPOaddress, "202");
+        require(isCPO(CPOaddress), "203");
+        require(rates.length == RATE_SLOTS, "801");
+        require(ratePrecision >= 1000000000, "802");
 
         // Transfer current rates if it is needed
         transferToNewRates(CPOaddress);
@@ -382,7 +386,7 @@ contract Contract {
         // There are existing rates.
         else {
             if ( cpo.rate.precision != ratePrecision ) {
-                revert("Rate precision cannot be altered in new rates.");
+                revert("803");
             }
             cpo.rate.next = rates;
             cpo.rate.changeDate = getNextRateChange();
@@ -395,7 +399,7 @@ contract Contract {
     }
 
     function addDeposit(address EVaddress) public payable {
-        require(msg.sender == EVaddress, "Sender must be EV address.");
+        require(msg.sender == EVaddress, "402");
         deposits[EVaddress] += msg.value;
     }
 
@@ -410,18 +414,18 @@ contract Contract {
     }*/
 
     function requestCharging(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) payable public {
-        require(msg.sender == EVaddress, "Sender must be EV address");
-        require(isEV(EVaddress), "EV address must be registered EV");
-        require(isCS(CSaddress), "CS address must be registered CS");
-        require(startTime >= block.timestamp, "Charging must be in the future");
+        require(msg.sender == EVaddress, "402");
+        require(isEV(EVaddress), "403");
+        require(isCS(CSaddress), "303");
+        require(startTime >= block.timestamp, "701");
 
         CS memory cs = CSs[CSaddress];
                 
-        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
-        require(isConnected(EVaddress, CSaddress), "EV and CS must be confirmed connected");
+        require(isDealActive(EVaddress, cs.cpo), "503");
+        require(isConnected(EVaddress, CSaddress), "605");
 
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
-        require(!isCharging(EVaddress, CSaddress), "Scheme already exists and is in place and not finished");
+        require(!isCharging(EVaddress, CSaddress), "702");
 
         // Calculate ChargingScheme
         transferToNewRates(cs.cpo);
@@ -430,7 +434,7 @@ contract Contract {
         uint moneyAvailable = msg.value + deposits[EVaddress];
         uint moneyRequired = scheme.priceInWei;
 
-        require(moneyAvailable >= moneyRequired, "Total deposit is incufficient");
+        require(moneyAvailable >= moneyRequired, "901");
         
         // Add to deposits
         deposits[EVaddress] += msg.value;
@@ -444,26 +448,26 @@ contract Contract {
     }
 
     function acknowledgeCharging(address CSaddress, address EVaddress, uint schemeId) public {
-        require(msg.sender == CSaddress, "Sender must be CS address");
-        require(isCS(CSaddress), "CS address must be registered CS");
-        require(isEV(EVaddress), "EV address must be registered EV");
-        require(schemeId > 0, "Scheme ID must be bigger than 0");
+        require(msg.sender == CSaddress, "302");
+        require(isCS(CSaddress), "303");
+        require(isEV(EVaddress), "403");
+        require(schemeId > 0, "703");
 
         CS memory cs = CSs[CSaddress];
 
-        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
-        require(isConnected(EVaddress, CSaddress), "EV and CS must be confirmed connected");
+        require(isDealActive(EVaddress, cs.cpo), "503");
+        require(isConnected(EVaddress, CSaddress), "605");
 
         // Get scheme
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
-        require(scheme.id == schemeId, "The scheme ID provided is not the same as the registered charging scheme");
-        require(!isCharging(EVaddress, CSaddress), "Scheme already exists and is in place and not finished");
+        require(scheme.id == schemeId, "704");
+        require(!isCharging(EVaddress, CSaddress), "702");
 
         if ( scheme.startTime < block.timestamp ) {
             emit ChargingSchemeTimeout(EVaddress, CSaddress, scheme);
             ChargingScheme memory blank;
             chargingSchemes[EVaddress][CSaddress] = blank;
-            revert("Charging scheme is to old and cannot be started.");
+            revert("705");
         }
 
         // Everything good, assume that charging will start
@@ -474,15 +478,15 @@ contract Contract {
     }
 
     function stopCharging(address EVaddress, address CSaddress) public {
-        require(msg.sender == EVaddress || msg.sender == CSaddress, "Sender must be EV/CS");
-        require(isEV(EVaddress), "EV address must be registered EV");
-        require(isCS(CSaddress), "CS address must be registered CS");
+        require(msg.sender == EVaddress || msg.sender == CSaddress, "402/302");
+        require(isEV(EVaddress), "403");
+        require(isCS(CSaddress), "303");
 
         Triplett memory t = getTriplett(EVaddress, CSaddress);
 
         // Validate that there exists a charging scheme that has not yet finished
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
-        require(isCharging(EVaddress, CSaddress), "Charging scheme is not accepted, or has already finished");
+        require(isCharging(EVaddress, CSaddress), "706");
 
         // Clamp time to fit into scheme
         uint finishTime = block.timestamp;
@@ -610,18 +614,18 @@ contract Contract {
     }*/
 
     function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
-        require(msg.sender == EVaddress, "Sender must be EV address");
-        require(isEV(EVaddress), "EV address must be registered EV");
-        require(isCS(CSaddress), "CS address must be registered CS");
+        require(msg.sender == EVaddress, "402");
+        require(isEV(EVaddress), "403");
+        require(isCS(CSaddress), "303");
         startTime = (startTime == 0) ? block.timestamp : startTime;
 
         Triplett memory T = getTriplett(EVaddress, CSaddress);
 
         // Make sure that there is still a deal active, and that the car is not fully charged
-        require(isDealActive(EVaddress, T.cpo._address), "There is no deal between EV and CS CPO");
-        require(startCharge < T.ev.maxCapacity && startCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
-        require(startCharge < targetCharge, "Current charge level must be less than targeted charge level");
-        require(targetCharge <= T.ev.maxCapacity, "Target charge level cannot be above cars charge level");
+        require(isDealActive(EVaddress, T.cpo._address), "503");
+        require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
+        require(startCharge < targetCharge, "708");
+        require(targetCharge <= T.ev.maxCapacity, "709");
 
         ChargingScheme memory scheme;
         scheme.startCharge = startCharge;
@@ -630,9 +634,6 @@ contract Contract {
 
         // Calculate charge time
         uint chargeTime = calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
-        /*chargeTime = (chargeTime > timeLeft) 
-                                ? timeLeft 
-                                : chargeTime;*/
 
         // Calculate maximum time left in charging
         uint maxTime = deals[EVaddress][T.cpo._address].endDate - startTime;
@@ -648,69 +649,21 @@ contract Contract {
                 temp = maxTime;
             }
         }
-        /*chargeTime = (chargeTime > timeLeft)
-                                ? timeLeft
-                                : chargeTime;*/
 
         scheme.chargeTime = chargeTime;
         scheme.maxTime = maxTime;
-        //scheme.endTime = startTime + chargeTime;
 
         return generateSchemeSlots(scheme, T);
-        /*uint elapsedTime;
-        uint totalCost;
-        uint index = 0;
-        while ( chargeTime > 0 ) {
-            
-            uint currentTime = startTime + elapsedTime;
-
-            uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
-            uint currentRate = (T.cpo.rate.changeDate != 0 && currentTime >= T.cpo.rate.changeDate) 
-                                ? T.cpo.rate.next[currentRateIndex]
-                                : T.cpo.rate.current[currentRateIndex];
-            
-            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
-
-            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTime
-                                            ? (nextRateSlot - currentTime) 
-                                            : chargeTime; // Seconds in this rate period.
-
-            // Check if slot is used (Max rate limit)
-            if ( shouldUseSlot(currentRate, EVaddress, T.cs.cpo ) ) {
-                uint slotCost = chargingTimeInSlot * currentRate * T.cs.powerDischarge;
-
-                totalCost += slotCost;
-                chargeTime -= chargingTimeInSlot;
-                elapsedTime += chargingTimeInSlot; 
-
-                scheme.durations[index] = chargingTimeInSlot;
-                scheme.prices[index] = slotCost;
-            }
-            else {
-                scheme.durations[index] = chargingTimeInSlot;
-                scheme.prices[index] = 0;
-            }
-
-            index++;
-        }
-
-        PrecisionNumber memory precisionTotalCost;
-        precisionTotalCost.precision = T.cpo.rate.precision;
-        precisionTotalCost.value = totalCost;
-
-        scheme.price = precisionTotalCost;
-        scheme.slotsUsed = index;
-
-        return scheme;*/
     }
 
     /*
     * PRIVATE FUNCTIONS
     */
 
-    function createCPO(address CPOaddress) private pure returns (CPO memory) {
+    function createCPO(address CPOaddress, bytes5 name) private pure returns (CPO memory) {
         CPO memory cpo;
         cpo.exist = true;
+        cpo.name = name;
         cpo._address = CPOaddress;
         return cpo;
     }

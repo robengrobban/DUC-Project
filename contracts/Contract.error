@@ -1,0 +1,54 @@
+100 (Misc)
+ - 
+
+200 (CPO)
+ - 201 : CPO already registered
+ - 202 : Sender is not a CPO
+ - 203 : CPO address not registered CPO
+ - 204 : Name must not be empty
+
+300 (CS)
+ - 301 : CS already registered
+ - 302 : Sender is not a CS
+ - 303 : CS address not registered CS
+ - 304 : Power discharg must be greater than 0
+
+400 (EV)
+ - 401 : EV already registered
+ - 402 : Sender is not a EV
+ - 403 : EV address not registered EV
+ - 404 : Max battery capacity cannot be set to 0
+ - 405 : Battery efficiency must be between 0 and 100, but not be 0 or 100
+
+500 (Deal)
+ - 501 : Deal already proposed, waiting response
+ - 502 : Accepted deal already exists
+ - 503 : Deal does not exist
+ - 504 : Deal already accepted
+ - 505 : Wrong deal ID, proposed deal might have changed
+
+600 (Connection)
+ - 601 : Nonce cannot be 0
+ - 602 : Connection already established
+ - 603 : Connection is waiting for response from CS party
+ - 604 : Connection is waiting for response from EV party
+ - 605 : No active connection exists
+
+700 (Charging)
+ - 701 : Charging must be in the future
+ - 702 : Scheme already exists and is in place and not finished
+ - 703 : Scheme ID must be bigger than 0
+ - 704 : The scheme ID provided is not the same as the registered charging scheme
+ - 705 : Charging scheme is to old and cannot be started
+ - 706 : Charging scheme is not accepted, or has already finished
+ - 707 : Current Charge cannot be negative, and must be less than max capacity
+ - 708 : Current charge level must be less than targeted charge level
+ - 709 : Target charge level cannot be above cars charge level
+
+800 (Rates)
+ - 801 : Rates array must be in correct intervall
+ - 802 : Rate precision must be at least 1000000000
+ - 803 : Rate precision cannot be altered in new rates
+
+900 (Deposits)
+ - 901 : Total deposit is incufficient

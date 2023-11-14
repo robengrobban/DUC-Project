@@ -24,13 +24,13 @@ if (false) {
 
 if (false) {
     // Register entities
-    operator.contract.events.CPORegistered({fromBlock: 'latest'}).on('data', log => {
+    operator.listen('CPORegistered').on('data', log => {
         console.log("Newly registered CPO: ", log.returnValues);
     });
-    station.contract.events.CSRegistered({fromBlock: 'latest'}).on('data', log => {
+    station.listen('CSRegistered').on('data', log => {
         console.log("Newly registered CS: ", log.returnValues);
     });
-    car.contract.events.EVRegistered({fromBlock: 'latest'}).on('data', log => {
+    car.listen('EVRegistered').on('data', log => {
         console.log("Newly registered EV: ", log.returnValues);
     });
 
@@ -46,7 +46,7 @@ if (false) {
     console.log("CS status: " + await station.isRegistered() + " " + await station.isCS());
 
     // Register rates
-    operator.contract.events.NewRates({fromBlock: 'latest'}).on('data', log => {
+    operator.listen('NewRates').on('data', log => {
         console.log("New rates: ", log.returnValues);
     });
 
@@ -55,14 +55,14 @@ if (false) {
     await operator.registerNewRates(rates);
 
     // Propose deal
-    operator.contract.events.DealProposed({fromBlock: 'latest'}).on('data', async log => {
+    operator.listen('DealProposed').on('data', async log => {
         console.log("New deal arrived: ", log.returnValues);
         console.log("ev: ", log.returnValues.ev);
         console.log("id: ", log.returnValues.deal.id);
         console.log("Answering deal...");
         await operator.respondDeal(log.returnValues.ev, true, log.returnValues.deal.id);
     });
-    car.contract.events.DealResponded({fromBlock: 'latest'}).on('data', log => {
+    car.listen('DealResponded').on('data', log => {
         console.log("Response to deal: ", log.returnValues);
         console.log("Accepted? ", log.returnValues.deal.accepted);
     });
@@ -71,10 +71,10 @@ if (false) {
     await car.proposeDeal(operator.account.address);
 
     // Make connection
-    station.contract.events.ConnectionMade({fromBlock: 'latest'}).on('data', log => {
+    station.listen('ConnectionMade').on('data', log => {
         console.log("CS got connection event: ", log.returnValues);
     });
-    car.contract.events.ConnectionMade({fromBlock: 'latest'}).on('data', log => {
+    car.listen('ConnectionMade').on('data', log => {
         console.log("EV got connection event: ", log.returnValues);
     });
 
@@ -87,10 +87,10 @@ if (false) {
 }
 if (false) {
     // Disconnect
-    station.contract.events.Disconnection({fromBlock: 'latest'}).on('data', log => {
+    station.listen('Disconnection').on('data', log => {
         console.log("CS disconnection event: ", log.returnValues);
     });
-    car.contract.events.Disconnection({fromBlock: 'latest'}).on('data', log => {
+    car.listen('Disconnection').on('data', log => {
         console.log("EV disconnection event: ", log.returnValues);
     });
 
@@ -99,7 +99,7 @@ if (false) {
 }
 if (false) {
     // Register rates
-    operator.contract.events.NewRates({fromBlock: 'latest'}).on('data', log => {
+    operator.listen('NewRates').on('data', log => {
         console.log("New rates: ", log.returnValues);
     });
 
@@ -114,13 +114,13 @@ if (false) {
 }
 if (false) {
     // Listenings
-    car.contract.events.ChargingAcknowledged({fromBlock: 'latest'}).on('data', log => {
+    car.listen('ChargingAcknowledged').on('data', log => {
         console.log("EV got start charging event ", log.returnValues);
     });
-    station.contract.events.ChargingAcknowledged({fromBlock: 'latest'}).on('data', log => {
+    station.listen('ChargingAcknowledged').on('data', log => {
         console.log("CS got start charging event ", log.returnValues);
     });
-    station.contract.events.ChargingRequested({fromBlock: 'latest'}).on('data', async log => {
+    station.listen('ChargingRequested').on('data', async log => {
         // Start charging
         console.log("CS charging request ", log.returnValues);
         let schemeId = log.returnValues.scheme.id;
@@ -135,14 +135,11 @@ if (false) {
 }
 if (false) {
     // Listenings
-    car.contract.events.ChargingStopped({fromBlock: 'latest'}).on('data', log => {
+    car.listen('ChargingStopped').on('data', log => {
         console.log("EV got stop charging event ", log.returnValues);
     });
-    station.contract.events.ChargingStopped({fromBlock: 'latest'}).on('data', log => {
+    station.listen('ChargingStopped').on('data', log => {
         console.log("CS got stop charging event ", log.returnValues);
-    });
-    car.contract.events.HistoryHappened({fromBlock: 'latest'}).on('data', log => {
-        console.log("History: ", log.returnValues);
     });
 
     // Stop charging
