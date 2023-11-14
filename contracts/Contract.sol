@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.23;
 
 contract Contract {
     
@@ -44,24 +44,11 @@ contract Contract {
         bytes5 name;
         address _address;
         bool useNordPoolRates;
-        Rate rate; // TODO : Rates must be subject to region, such as SE1,SE2,SE3,SE4
-    }
-    struct Rate {
-        bytes3 region;
-
-        uint[RATE_SLOTS] current; // Rate in Watt seconds
-        uint startDate; // The date when the rates was applied
-        uint precision; // The selected precision for Rates. (INT calculation)
-
-        uint[RATE_SLOTS] next; // The next scheduled rates
-        uint changeDate; // The date when the new rates are expected to change
-
-        uint[RATE_SLOTS] historical; // What the last rate was
-        uint historicalDate; // When the rates in historical started
     }
     struct CS {
         bool exist;
         address _address;
+        bytes3 region;
         uint powerDischarge; // Watt output
         address cpo; // Connection to what CPO
     }
@@ -96,6 +83,21 @@ contract Contract {
         uint establishedDate;
     }
 
+    mapping(address => mapping(bytes3 => Rate)) rates; // CPO -> Region -> Rate
+    struct Rate {
+        bytes3 region;
+
+        uint[RATE_SLOTS] current; // Rate in Watt seconds
+        uint startDate; // The date when the rates was applied
+        uint precision; // The selected precision for Rates. (INT calculation)
+
+        uint[RATE_SLOTS] next; // The next scheduled rates
+        uint changeDate; // The date when the new rates are expected to change
+
+        uint[RATE_SLOTS] historical; // What the last rate was
+        uint historicalDate; // When the rates in historical started
+    }
+
     mapping(address => mapping(address => ChargingScheme)) chargingSchemes; // EV -> CS -> CharginScheme
     uint nextSchemeId = 0;
     struct ChargingScheme {
@@ -112,8 +114,10 @@ contract Contract {
         uint maxTime;
         uint endTime;
         uint finishTime;
+        bytes3 region;
         PrecisionNumber price;
         uint priceInWei;
+        PrecisionNumber finalPrice;
         uint finalPriceInWei;
         uint slotsUsed;
         uint[RATE_SLOTS*2] durations;
@@ -146,7 +150,7 @@ contract Contract {
     event ConnectionMade(address indexed ev, address indexed cs, Connection connection);
     event Disconnection(address indexed ev, address indexed cs);
 
-    event NewRates(address indexed cpo, CPO details);
+    event NewRates(address indexed cpo, bytes3 region, Rate rates);
 
     event ChargingRequested(address indexed ev, address indexed cs, ChargingScheme scheme);
     event InssufficientDeposit(address indexed ev, address indexed cs);
@@ -181,13 +185,14 @@ contract Contract {
         emit CPORegistered(CPOaddress);
     }
 
-    function registerCS(address CPOaddress, address CSaddress, uint powerDischarge) public {
+    function registerCS(address CPOaddress, address CSaddress, bytes3 region, uint powerDischarge) public {
         require(CPOaddress == msg.sender, "303");
         require(isCPO(CPOaddress), "202");
         require(!isRegistered(CSaddress), "301");
         require(powerDischarge > 0, "304");
+        require(region.length != 0, "305");
 
-        CSs[CSaddress] = createCS(CSaddress, CPOaddress, powerDischarge);
+        CSs[CSaddress] = createCS(CSaddress, CPOaddress, region, powerDischarge);
 
         emit CSRegistered(CSaddress, CPOaddress);
     }
@@ -367,34 +372,32 @@ contract Contract {
         }
     }
 
-    function setRates(address CPOaddress, uint[RATE_SLOTS] calldata rates, uint ratePrecision) public {
+    function setRates(address CPOaddress, bytes3 region, uint[RATE_SLOTS] calldata newRates, uint ratePrecision) public {
         require(msg.sender == CPOaddress, "202");
         require(isCPO(CPOaddress), "203");
-        require(rates.length == RATE_SLOTS, "801");
+        require(newRates.length == RATE_SLOTS, "801");
         require(ratePrecision >= 1000000000, "802");
 
         // Transfer current rates if it is needed
-        transferToNewRates(CPOaddress);
+        transferToNewRates(CPOaddress, region);
 
-        CPO memory cpo = CPOs[CPOaddress];
         // There are no current rates
-        if ( cpo.rate.current[0] == 0 ) {
-            cpo.rate.startDate = block.timestamp;
-            cpo.rate.current = rates;
-            cpo.rate.precision = ratePrecision;
+        if ( !isRegionAvailable(CPOaddress, region) ) {
+            rates[CPOaddress][region].region = region;
+            rates[CPOaddress][region].startDate = block.timestamp;
+            rates[CPOaddress][region].current = newRates;
+            rates[CPOaddress][region].precision = ratePrecision;
         }
         // There are existing rates.
         else {
-            if ( cpo.rate.precision != ratePrecision ) {
+            if ( rates[CPOaddress][region].precision != ratePrecision ) {
                 revert("803");
             }
-            cpo.rate.next = rates;
-            cpo.rate.changeDate = getNextRateChange();
+            rates[CPOaddress][region].next = newRates;
+            rates[CPOaddress][region].changeDate = getNextRateChange();
         }
 
-        CPOs[CPOaddress] = cpo;
-
-        emit NewRates(CPOaddress, cpo);
+        emit NewRates(CPOaddress, region, rates[CPOaddress][region]);
 
     }
 
@@ -408,7 +411,7 @@ contract Contract {
     }
 
     /*function withdrawDeposit(address payable EVaddress) public {
-        require(msg.sender == EVaddress, "Sender must be EV address.");
+        require(msg.sender == EVaddress, "402");
         EVaddress.transfer(deposits[EVaddress]);
         deposits[EVaddress] = 0;
     }*/
@@ -423,12 +426,13 @@ contract Contract {
                 
         require(isDealActive(EVaddress, cs.cpo), "503");
         require(isConnected(EVaddress, CSaddress), "605");
+        require(isRegionAvailable(cs.cpo, cs.region), "804");
 
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
         require(!isCharging(EVaddress, CSaddress), "702");
 
         // Calculate ChargingScheme
-        transferToNewRates(cs.cpo);
+        transferToNewRates(cs.cpo, cs.region);
         scheme = getChargingScheme(EVaddress, CSaddress, startTime, startCharge, targetCharge);
 
         uint moneyAvailable = msg.value + deposits[EVaddress];
@@ -517,101 +521,6 @@ contract Contract {
         emit ChargingStopped(EVaddress, CSaddress, scheme, priceInWei);
 
     }
-    function getChargingSchemeFinalPrice(ChargingScheme memory scheme, uint finishTime) private pure returns (uint) {       
-        if ( scheme.endTime == finishTime ) {
-            return scheme.priceInWei;
-        }
-        else if ( scheme.startTime == finishTime ) {
-            return 0;
-        }
-
-        uint elapsedTime;
-        PrecisionNumber memory price;
-        price.precision = scheme.price.precision;
-
-        for ( uint i = 0; i < scheme.slotsUsed; i++ ) {
-           
-            uint currentTime = scheme.startTime + elapsedTime;
-
-            if ( currentTime >= finishTime ) {
-                break;
-            }
-
-            uint timeInSlot = scheme.durations[i];
-            timeInSlot = currentTime + timeInSlot > finishTime
-                            ? timeInSlot - (currentTime + timeInSlot - finishTime)
-                            : timeInSlot;
-
-            uint slotPrice = scheme.prices[i] * timeInSlot / scheme.durations[i];
-            price.value += slotPrice;
-            elapsedTime += timeInSlot;
-
-        }
-
-        return priceToWei(price);
-
-    }
-
-    /*function estimateChargingPrice(address EVaddress, address CSaddress, uint startTime, uint startCharge) public view returns (PrecisionNumber memory) {
-        require(msg.sender == EVaddress, "Sender must be EV address");
-        require(isEV(EVaddress), "EV address must be registered EV");
-        require(isCS(CSaddress), "CS address must be registered CS");
-        startTime = (startTime == 0) ? block.timestamp : startTime;
-
-        EV memory ev = EVs[EVaddress];
-        CS memory cs = CSs[CSaddress];
-        CPO memory cpo = CPOs[cs.cpo];
-
-        // Make sure that there is still a deal active, and that the car is not fully charged
-        require(isDealActive(EVaddress, cs.cpo), "There is no deal between EV and CS CPO");
-        require(startCharge < ev.maxCapacity && startCharge >= 0, "Current Charge cannot be negative, and must be less than max capacity");
-
-        // Calculate charge time, and adjust it if the deal ends before fully charged.
-        uint chargeTime = calculateChargeTimeInSeconds((ev.maxCapacity - startCharge), cs.powerDischarge, ev.batteryEfficiency);
-        uint timeLeft = deals[EVaddress][cs.cpo].endDate - startTime;
-        chargeTime = (chargeTime > timeLeft) 
-                                ? timeLeft 
-                                : chargeTime;
-
-        // Adjust if there is a upper time limit on rates
-        if ( cpo.rate.changeDate == 0 ) {
-            timeLeft = getNextRateChangeAtTime(startTime)-startTime;
-        }
-        else {
-            timeLeft = getNextRateChangeAtTime(cpo.rate.changeDate)-startTime;
-        }
-        chargeTime = (chargeTime > timeLeft)
-                                ? timeLeft
-                                : chargeTime;
-
-        uint elapsedTime;
-        uint totalCost;
-        while ( chargeTime > 0 ) {
-            
-            uint currentTime = startTime + elapsedTime;
-
-            uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
-            uint currentRate = (cpo.rate.changeDate != 0 && currentTime >= cpo.rate.changeDate) 
-                                ? cpo.rate.next[currentRateIndex]
-                                : cpo.rate.current[currentRateIndex];
-            
-            uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate starts.
-
-            uint chargingTimeInSlot = (nextRateSlot - currentTime) < chargeTime
-                                            ? (nextRateSlot - currentTime) 
-                                            : chargeTime; // Seconds in this rate period.
-
-            totalCost += chargingTimeInSlot * currentRate * cs.powerDischarge;
-            chargeTime -= chargingTimeInSlot;
-            elapsedTime += chargingTimeInSlot;
-
-        }
-
-        PrecisionNumber memory precisionTotalCost;
-        precisionTotalCost.precision = cpo.rate.precision;
-        precisionTotalCost.value = totalCost;
-        return precisionTotalCost;
-    }*/
 
     function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
         require(msg.sender == EVaddress, "402");
@@ -637,14 +546,14 @@ contract Contract {
 
         // Calculate maximum time left in charging
         uint maxTime = deals[EVaddress][T.cpo._address].endDate - startTime;
-        if ( T.cpo.rate.changeDate == 0 ) {
+        if ( rates[T.cpo._address][T.cs.region].changeDate == 0 ) {
             uint temp = getNextRateChangeAtTime(startTime) - startTime;
             if ( temp < maxTime ) {
                 maxTime = temp;
             }
         }
         else {
-            uint temp = getNextRateChangeAtTime(T.cpo.rate.changeDate) - startTime;
+            uint temp = getNextRateChangeAtTime(rates[T.cpo._address][T.cs.region].changeDate) - startTime;
             if ( maxTime < temp ) {
                 temp = maxTime;
             }
@@ -652,6 +561,7 @@ contract Contract {
 
         scheme.chargeTime = chargeTime;
         scheme.maxTime = maxTime;
+        scheme.region = T.cs.region;
 
         return generateSchemeSlots(scheme, T);
     }
@@ -668,11 +578,12 @@ contract Contract {
         return cpo;
     }
 
-    function createCS(address CSaddress, address CPOaddress, uint powerDischarge) private pure returns (CS memory) {
+    function createCS(address CSaddress, address CPOaddress, bytes3 region, uint powerDischarge) private pure returns (CS memory) {
         CS memory cs;
         cs.exist = true;
         cs._address = CSaddress;
         cs.cpo = CPOaddress;
+        cs.region = region;
         cs.powerDischarge = powerDischarge;
         return cs;    
     }
@@ -718,12 +629,14 @@ contract Contract {
     function isCharging(address EVaddress, address CSaddress) private view returns (bool) {
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
         return scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
-        //return ((scheme.accepted || scheme.finished) && !(scheme.accepted && scheme.finished));
-        //return chargingSchemes[EVaddress][CSaddress].accepted && !chargingSchemes[EVaddress][CSaddress].finished;
     }
     function isSmartCharging(address EVaddress, address CSaddress) private view returns (bool) {
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
         return scheme.smartCharging && scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
+    }
+
+    function isRegionAvailable(address CPOaddress, bytes3 region) private view returns (bool) {
+        return rates[CPOaddress][region].current[0] != 0;
     }
 
     function removeDeal(address EVaddress, address CPOaddress) private {
@@ -753,25 +666,21 @@ contract Contract {
         return (time / RATE_SLOT_PERIOD) % RATE_SLOTS;
     }
 
-    function transferToNewRates(address CPOaddress) private returns (bool) {
+    function transferToNewRates(address CPOaddress, bytes3 region) private returns (bool) {
 
-        CPO memory cpo = CPOs[CPOaddress];
-
-        if ( cpo.rate.current[0] == 0 || cpo.rate.next[0] == 0 ) {
+        if ( rates[CPOaddress][region].current[0] == 0 || rates[CPOaddress][region].next[0] == 0 ) {
             return false;
         }
-        if ( cpo.rate.changeDate != 0 && block.timestamp >= cpo.rate.changeDate ) {
-            cpo.rate.historical = cpo.rate.current;
-            cpo.rate.historicalDate = cpo.rate.startDate;
+        if ( rates[CPOaddress][region].changeDate != 0 && block.timestamp >= rates[CPOaddress][region].changeDate ) {
+            rates[CPOaddress][region].historical = rates[CPOaddress][region].current;
+            rates[CPOaddress][region].historicalDate = rates[CPOaddress][region].startDate;
 
-            cpo.rate.current = cpo.rate.next;
-            cpo.rate.startDate = cpo.rate.changeDate;
+            rates[CPOaddress][region].current = rates[CPOaddress][region].next;
+            rates[CPOaddress][region].startDate = rates[CPOaddress][region].changeDate;
 
-            uint[60] memory empty;
-            cpo.rate.next = empty;
-            cpo.rate.changeDate = 0;
-
-            CPOs[CPOaddress] = cpo;
+            uint[RATE_SLOTS] memory empty;
+            rates[CPOaddress][region].next = empty;
+            rates[CPOaddress][region].changeDate = 0;
 
             return true;
         }
@@ -789,7 +698,7 @@ contract Contract {
         return ((price.value * WEI_FACTOR) + (price.precision/2)) / price.precision;
     }
 
-    function generateSchemeSlots(ChargingScheme memory scheme, Triplett memory triplett) private view returns (ChargingScheme memory) {
+    function generateSchemeSlots(ChargingScheme memory scheme, Triplett memory T) private view returns (ChargingScheme memory) {
         uint chargeTimeLeft = scheme.chargeTime;
         uint startTime = scheme.startTime;
         uint elapsedTime;
@@ -800,13 +709,13 @@ contract Contract {
             uint currentTime = startTime + elapsedTime;
 
             uint currentRateIndex = getRateSlot(currentTime); // Current Watt Seconds rate index.
-            uint currentRate = (triplett.cpo.rate.changeDate != 0 && currentTime >= triplett.cpo.rate.changeDate) 
-                                ? triplett.cpo.rate.next[currentRateIndex]
-                                : triplett.cpo.rate.current[currentRateIndex];
+            uint currentRate = (rates[T.cpo._address][T.cs.region].changeDate != 0 && currentTime >= rates[T.cpo._address][T.cs.region].changeDate) 
+                                ? rates[T.cpo._address][T.cs.region].next[currentRateIndex]
+                                : rates[T.cpo._address][T.cs.region].current[currentRateIndex];
             
             uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate slot starts.
 
-            bool useSlot = shouldUseSlot(currentRate, triplett.ev._address, triplett.cpo._address);
+            bool useSlot = shouldUseSlot(currentRate, T.ev._address, T.cpo._address, T.cs.region);
 
             uint timeInSlot = nextRateSlot - currentTime;
             
@@ -823,7 +732,7 @@ contract Contract {
                 scheme.idleTime += timeInSlot;
             }
 
-            uint slotCost = timeInSlot * currentRate * triplett.cs.powerDischarge;
+            uint slotCost = timeInSlot * currentRate * T.cs.powerDischarge;
 
             totalCost += slotCost;
             chargeTimeLeft -= timeInSlot;
@@ -836,7 +745,7 @@ contract Contract {
         }
 
         PrecisionNumber memory precisionTotalCost;
-        precisionTotalCost.precision = triplett.cpo.rate.precision;
+        precisionTotalCost.precision = rates[T.cpo._address][T.cs.region].precision;
         precisionTotalCost.value = totalCost;
 
         scheme.endTime = startTime + elapsedTime;
@@ -847,10 +756,10 @@ contract Contract {
         return scheme;
     }
 
-    function shouldUseSlot(uint currentRate, address EVaddress, address CPOaddress) private view returns (bool) {
+    function shouldUseSlot(uint currentRate, address EVaddress, address CPOaddress, bytes3 region) private view returns (bool) {
         PrecisionNumber memory maxRate = deals[EVaddress][CPOaddress].maxRate;
 
-        uint CPOprecision = CPOs[CPOaddress].rate.precision;
+        uint CPOprecision = rates[CPOaddress][region].precision;
         PrecisionNumber memory slotRate = PrecisionNumber({
             value: currentRate,
             precision: CPOprecision
@@ -876,6 +785,41 @@ contract Contract {
             first.precision *= deltaPrecision;
         }
         return (first, second);
+    }
+
+    function getChargingSchemeFinalPrice(ChargingScheme memory scheme, uint finishTime) private pure returns (uint) {       
+        if ( scheme.endTime == finishTime ) {
+            return scheme.priceInWei;
+        }
+        else if ( scheme.startTime == finishTime ) {
+            return 0;
+        }
+
+        uint elapsedTime;
+        PrecisionNumber memory price;
+        price.precision = scheme.price.precision;
+
+        for ( uint i = 0; i < scheme.slotsUsed; i++ ) {
+           
+            uint currentTime = scheme.startTime + elapsedTime;
+
+            if ( currentTime >= finishTime ) {
+                break;
+            }
+
+            uint timeInSlot = scheme.durations[i];
+            timeInSlot = currentTime + timeInSlot > finishTime
+                            ? timeInSlot - (currentTime + timeInSlot - finishTime)
+                            : timeInSlot;
+
+            uint slotPrice = scheme.prices[i] * timeInSlot / scheme.durations[i];
+            price.value += slotPrice;
+            elapsedTime += timeInSlot;
+
+        }
+
+        scheme.finalPrice = price;
+        return priceToWei(price);
     }
 
     /*
@@ -904,6 +848,10 @@ contract Contract {
 
     function debugChargingScheme(address EVaddress, address CSaddress) public view returns (ChargingScheme memory) {
         return chargingSchemes[EVaddress][CSaddress];
+    }
+
+    function debugRates(address CPOaddress, bytes3 region) public view returns (Rate memory) {
+        return rates[CPOaddress][region];
     }
 
 }

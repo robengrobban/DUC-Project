@@ -33,6 +33,7 @@ class CPO extends Entity {
         return await this.contract.methods.registerCS(
             this.account.address, 
             CSaddress, 
+            this.web3.utils.fromAscii("SE1"),
             powerDischarge
         ).send();
     }
@@ -49,6 +50,7 @@ class CPO extends Entity {
     async registerNewRates(rates) {
         return await this.contract.methods.setRates(
             this.account.address, 
+            this.web3.utils.fromAscii("SE1"),
             rates, 
             this.ratePrecision
         ).send();

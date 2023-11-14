@@ -8,6 +8,7 @@ class CS extends Entity {
 
     type = 2;
     powerDischarge = 22000; // Watt output
+    region = "SE1";
 
     /**
      * Functions

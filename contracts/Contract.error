@@ -12,6 +12,7 @@
  - 302 : Sender is not a CS
  - 303 : CS address not registered CS
  - 304 : Power discharg must be greater than 0
+ - 305 : Region must not be empty
 
 400 (EV)
  - 401 : EV already registered
@@ -49,6 +50,7 @@
  - 801 : Rates array must be in correct intervall
  - 802 : Rate precision must be at least 1000000000
  - 803 : Rate precision cannot be altered in new rates
+ - 804 : No rates exists for that region
 
 900 (Deposits)
  - 901 : Total deposit is incufficient
