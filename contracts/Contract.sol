@@ -580,6 +580,9 @@ contract Contract {
         require(isRegionAvailable(cs.cpo, cs.region), "804");
         require(!isCharging(EVaddress, CSaddress), "702");
 
+        // Transfer to new rates
+        transferToNewRates(cs.cpo, cs.region);
+
         // Get smart charging spot
         ChargingScheme memory scheme = getSmartChargingSpot();
         // TODO : Make sure that it is a SmartCharging marked
@@ -590,11 +593,12 @@ contract Contract {
 
     }
     function getSmartChargingSpot() private view returns (ChargingScheme memory) {
-        
+        // TODO : Implement
+
     }
 
-    function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public {
-        require(msg.sender == CSaddress, "302");
+    function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public payable {
+        require(msg.sender == EVaddress, "402");
         require(isCS(CSaddress), "303");
         require(isEV(EVaddress), "403");
         require(schemeId > 0, "703");
@@ -617,11 +621,20 @@ contract Contract {
             revert("705");
         }
 
-        // Everything good, assume that charging will start
-        scheme.CSaccepted = true;
+        // Check funds
+        uint moneyAvailable = msg.value + deposits[EVaddress];
+        uint moneyRequired = scheme.priceInWei;
+
+        require(moneyAvailable >= moneyRequired, "901");
+
+        // Add to deposits
+        deposits[EVaddress] += msg.value;
+
+        // Everything good, accept the charging scheme of type smart charging
+        scheme.EVaccepted = true;
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
-        emit ChargingAcknowledged(EVaddress, CSaddress, scheme);
+        emit ChargingRequested(EVaddress, CSaddress, scheme);
     }
 
     /*
