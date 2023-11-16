@@ -17,7 +17,7 @@ async function deploy(name) {
     contract.options.data = bytecode;
     const deployTX = contract.deploy();
     
-    const gas = await deployTX.estimateGas();
+    const gas = (await deployTX.estimateGas()) * web3.utils.toBigInt(2);
     
     console.log("Deploying...", name);
     const deployedContract = await deployTX.send({
@@ -34,6 +34,7 @@ async function deploy(name) {
 }
 
 async function connect(name, args) {
+    console.log("Connecting...", name, "with", args)
     const abi = JSON.parse(await fs.readFile("contracts/abi/"+name+".abi", "utf-8"));
     const contract_address = await fs.readFile("contracts/address/"+name+".address", "utf-8");
 
@@ -45,12 +46,18 @@ async function connect(name, args) {
     ).send();
 }
 
-await deploy("Contract-old.sol");
+const contract_address = await deploy("Contract");
 
-//const main_contract = await deploy("Contract");
-//console.log(main_contract);
+const entity_address = await deploy("Entity");
 
-//const entity_contract = await deploy("Entity");
-//console.log(entity_contract);
+await connect("Contract", entity_address);
+await connect("Entity", contract_address);
 
 
+
+function delay(time) {
+    return new Promise(resolve => setTimeout(resolve, time));
+}
+await delay(1000);
+console.log("Done");
+process.exit();

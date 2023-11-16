@@ -5,6 +5,7 @@ pragma solidity ^0.8.23;
 import './Structure.sol';
 import './IContract.sol';
 import './IEntity.sol';
+import './IDeal.sol';
 
 contract Contract is Structure, IContract {
     
@@ -13,16 +14,21 @@ contract Contract is Structure, IContract {
     */
     address owner;
     IEntity entityInstance;
+    IDeal dealInstance;
 
     constructor () {
         owner = msg.sender;
     }
 
-    function set(address entityAddress) public {
+    function set(address entityAddress, address dealAddress) public {
         require(msg.sender == owner, "101");
 
         entityInstance = IEntity(entityAddress);
+        dealInstance = IDeal(dealAddress);
+    }
 
+    function debugOwner() public view returns (address, IEntity) {
+        return (owner, entityInstance);
     }
     
 
@@ -87,123 +93,68 @@ contract Contract is Structure, IContract {
         return EVs[target].exist;
     }
 
+    function getDeal(address EVaddress, address CPOaddress) public view returns (Deal memory) {
+        return deals[EVaddress][CPOaddress];
+    }
+    function isDealActive(address EVaddress, address CPOaddress) public view returns (bool) {
+        return deals[EVaddress][CPOaddress].accepted && deals[EVaddress][CPOaddress].endDate > block.timestamp;
+    }
+
+    function isConnected(address EVaddress, address CSaddress) public view returns (bool) {
+        return connections[EVaddress][CSaddress].EVconnected && connections[EVaddress][CSaddress].CSconnected;
+    }
+
+    function isCharging(address EVaddress, address CSaddress) public view returns (bool) {
+        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
+        return scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
+    }
+    function isSmartCharging(address EVaddress, address CSaddress) public view returns (bool) {
+        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
+        return scheme.smartCharging && scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
+    }
+    function isRegionAvailable(address CPOaddress, bytes3 region) public view returns (bool) {
+        return rates[CPOaddress][region].current[0] != 0;
+    }
+
     function registerCPO(address CPOaddress, bytes5 name) public {
-        require(CPOaddress == msg.sender, "203");
-        require(!isRegistered(CPOaddress), "201");
-        require(name.length != 0, "204");
-
         CPOs[CPOaddress] = entityInstance.createCPO(CPOaddress, name);
-
         emit CPORegistered(CPOaddress);
     }
 
     function registerCS(address CPOaddress, address CSaddress, bytes3 region, uint powerDischarge) public {
-        require(CPOaddress == msg.sender, "303");
-        require(isCPO(CPOaddress), "202");
-        require(!isRegistered(CSaddress), "301");
-        require(powerDischarge > 0, "304");
-        require(region.length != 0, "305");
-
         CSs[CSaddress] = entityInstance.createCS(CSaddress, CPOaddress, region, powerDischarge);
-
         emit CSRegistered(CSaddress, CPOaddress);
     }
 
     function registerEV(address EVaddress, uint maxCapacity, uint batteryEfficiency) public {
-        require(EVaddress == msg.sender, "403");
-        require(!isRegistered(EVaddress), "401");
-        require(maxCapacity != 0, "404");
-        require(batteryEfficiency > 0 && batteryEfficiency < 100, "405");
-
         EVs[EVaddress] = entityInstance.createEV(EVaddress, maxCapacity, batteryEfficiency);
-
         emit EVRegistered(EVaddress);
     }
 
     function proposeDeal(address EVaddress, address CPOaddress) public {
-        require(EVaddress == msg.sender, "102");
-        require(isEV(EVaddress), "402");
-        require(isCPO(CPOaddress), "203");
-
-        Deal memory currentDeal = deals[EVaddress][CPOaddress];
-        if ( currentDeal.EV != address(0) && !currentDeal.accepted && currentDeal.endDate > block.timestamp ) {
-            revert("501");
-        }
-        else if ( isDealActive(EVaddress, CPOaddress) ) {
-            revert("502");
-        }
-
-        PrecisionNumber memory maxRate = PrecisionNumber({
-            value: 500,
-            precision: 1000000000
-        });
-        Deal memory proposedDeal = Deal({
-            id: getNextDealId(),
-            EV: EVaddress,
-            CPO: CPOaddress,
-            accepted: false,
-            onlyRewneableEnergy: false,
-            maxRate: maxRate,
-            allowSmartCharging: true,
-            startDate: block.timestamp,
-            endDate: block.timestamp + 1 days
-        });
-
+        Deal memory proposedDeal = dealInstance.proposeDeal(EVaddress, CPOaddress, getNextDealId());
         deals[EVaddress][CPOaddress] = proposedDeal;
-
         emit DealProposed(EVaddress, CPOaddress, proposedDeal);
-
     }
 
     function revertProposedDeal(address EVaddress, address CPOaddress, uint dealId) public {
-        require(EVaddress == msg.sender, "402");
-        require(isEV(EVaddress), "403");
-        require(isCPO(CPOaddress), "203");
-
         Deal memory proposedDeal = deals[EVaddress][CPOaddress];
-        if ( proposedDeal.EV == address(0) ) {
-            revert("503");
-        }
-        else if ( proposedDeal.accepted ) {
-            revert("504");
-        }
-        else if ( proposedDeal.id != dealId ) {
-            revert("505");
-        }
-
+        dealInstance.verifyDealInfo(EVaddress, CPOaddress, dealId, proposedDeal);
         removeDeal(EVaddress, CPOaddress);
-
         emit DealProposalReverted(EVaddress, CPOaddress, proposedDeal);
-
     }
 
     function respondDeal(address CPOaddress, address EVaddress, bool accepted, uint dealId) public {
-        require(CPOaddress == msg.sender, "202");
-        require(isCPO(CPOaddress), "203");
-        require(isEV(EVaddress), "403");
-
         Deal memory proposedDeal = deals[EVaddress][CPOaddress];
-        if ( proposedDeal.EV == address(0) ) {
-            revert("503");
-        }
-        else if ( proposedDeal.accepted ) {
-            revert("504");
-        }
-        else if ( proposedDeal.id != dealId ) {
-            revert("505");
-        }
-
+        dealInstance.verifyDealInfo(CPOaddress, EVaddress, dealId, proposedDeal);
         proposedDeal.accepted = accepted;
-
         if ( !accepted ) {
             removeDeal(EVaddress, CPOaddress);
         }
         else {
             deals[EVaddress][CPOaddress] = proposedDeal;
         }
-
         emit DealResponded(EVaddress, CPOaddress, accepted, proposedDeal);
-
     }
 
     function connect(address EVaddress, address CSaddress, uint nonce) public {
@@ -509,7 +460,7 @@ contract Contract is Structure, IContract {
 
     }
 
-    /*function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public payable {
+    function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public payable {
         require(msg.sender == EVaddress, "402");
         require(isCS(CSaddress), "303");
         require(isEV(EVaddress), "403");
@@ -547,7 +498,7 @@ contract Contract is Structure, IContract {
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
         emit ChargingRequested(EVaddress, CSaddress, scheme);
-    }*/
+    }
 
     /*
     * PRIVATE FUNCTIONS
@@ -574,32 +525,10 @@ contract Contract is Structure, IContract {
         return nextSchemeId;
     }
 
-    function isDealActive(address EVaddress, address CPOaddress) private view returns (bool) {
-        return deals[EVaddress][CPOaddress].accepted && deals[EVaddress][CPOaddress].endDate > block.timestamp;
-    }
-
-    function isConnected(address EVaddress, address CSaddress) private view returns (bool) {
-        return connections[EVaddress][CSaddress].EVconnected && connections[EVaddress][CSaddress].CSconnected;
-    }
-
-    function isCharging(address EVaddress, address CSaddress) private view returns (bool) {
-        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
-        return scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
-    }
-    function isSmartCharging(address EVaddress, address CSaddress) private view returns (bool) {
-        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
-        return scheme.smartCharging && scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
-    }
-
-    function isRegionAvailable(address CPOaddress, bytes3 region) private view returns (bool) {
-        return rates[CPOaddress][region].current[0] != 0;
-    }
-
     function removeDeal(address EVaddress, address CPOaddress) private {
         Deal memory placeholder;
         deals[EVaddress][CPOaddress] = placeholder;
     }
-
     function removeConnection(address EVaddress, address CPOaddress) private {
         Connection memory placeholder;
         connections[EVaddress][CPOaddress] = placeholder;

@@ -80,7 +80,9 @@ class Entity {
         );
     }
 
-
+    async debugOwner() {
+        return await this.contract.methods.debugOwner().call();
+    }
     async debugDeal(EVaddress, CPOaddress) {
         return await this.contract.methods.debugDeal(
             EVaddress, 

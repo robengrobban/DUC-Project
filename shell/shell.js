@@ -10,6 +10,35 @@ await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
 
+console.log("DEBUG EV: ", await car.debugEV());
+console.log("DEBUG CPO: ", await operator.debugCPO());
+console.log("DEBUG CS: ", await station.debugCS());
+
+operator.listen('CPORegistered').on('data', log => {
+    console.log("Newly registered CPO: ", log.returnValues);
+});
+station.listen('CSRegistered').on('data', log => {
+    console.log("Newly registered CS: ", log.returnValues);
+});
+car.listen('EVRegistered').on('data', log => {
+    console.log("Newly registered EV: ", log.returnValues);
+});
+
+console.log("Registring EV...");
+await car.register();
+console.log("Registring CPO...");
+await operator.register();
+console.log("Registring CS...");
+await operator.registerCS(station.account.address, station.powerDischarge);
+
+console.log("EV status: " + await car.isRegistered() + " " + await car.isEV());
+console.log("CPO status: " + await operator.isRegistered() + " " + await operator.isCPO());
+console.log("CS status: " + await station.isRegistered() + " " + await station.isCS());
+
+console.log("DEBUG EV: ", await car.debugEV());
+console.log("DEBUG CPO: ", await operator.debugCPO());
+console.log("DEBUG CS: ", await station.debugCS());
+
 if (false) {
     console.log("DEBUG EV: ", await car.debugEV());
     console.log("DEBUG CPO: ", await operator.debugCPO());
@@ -147,3 +176,10 @@ if (false) {
     console.log(car.getTime());
     await car.stopCharging(station.account.address);
 }
+
+function delay(time) {
+    return new Promise(resolve => setTimeout(resolve, time));
+}
+await delay(1000);
+console.log("Done");
+process.exit();
