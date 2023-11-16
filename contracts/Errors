@@ -1,5 +1,6 @@
 100 (Misc)
  - 101 : Not contract owner
+ - 102 : Not contract connection
 
 200 (CPO)
  - 201 : CPO already registered

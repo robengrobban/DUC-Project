@@ -27,8 +27,8 @@ contract Contract is Structure, IContract {
         dealInstance = IDeal(dealAddress);
     }
 
-    function debugOwner() public view returns (address, IEntity) {
-        return (owner, entityInstance);
+    function debugOwner() public view returns (address, IEntity, IDeal) {
+        return (owner, entityInstance, dealInstance);
     }
     
 
@@ -139,14 +139,14 @@ contract Contract is Structure, IContract {
 
     function revertProposedDeal(address EVaddress, address CPOaddress, uint dealId) public {
         Deal memory proposedDeal = deals[EVaddress][CPOaddress];
-        dealInstance.verifyDealInfo(EVaddress, CPOaddress, dealId, proposedDeal);
+        dealInstance.verifyRevertProposedDeal(EVaddress, CPOaddress, dealId, proposedDeal);
         removeDeal(EVaddress, CPOaddress);
         emit DealProposalReverted(EVaddress, CPOaddress, proposedDeal);
     }
 
     function respondDeal(address CPOaddress, address EVaddress, bool accepted, uint dealId) public {
         Deal memory proposedDeal = deals[EVaddress][CPOaddress];
-        dealInstance.verifyDealInfo(CPOaddress, EVaddress, dealId, proposedDeal);
+        dealInstance.verifyRespondDeal(CPOaddress, EVaddress, dealId, proposedDeal);
         proposedDeal.accepted = accepted;
         if ( !accepted ) {
             removeDeal(EVaddress, CPOaddress);
@@ -431,7 +431,7 @@ contract Contract is Structure, IContract {
         return generateSchemeSlots(scheme, T);
     }
 
-    function scheduleSmartCharging(address EVaddress, address CSaddress) public {
+    /*function scheduleSmartCharging(address EVaddress, address CSaddress) public {
         require(msg.sender == EVaddress || msg.sender == CSaddress, "402/302");
         require(isEV(EVaddress), "403");
         require(isCS(CSaddress), "303");
@@ -498,7 +498,7 @@ contract Contract is Structure, IContract {
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
         emit ChargingRequested(EVaddress, CSaddress, scheme);
-    }
+    }*/
 
     /*
     * PRIVATE FUNCTIONS

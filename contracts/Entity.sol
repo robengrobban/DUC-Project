@@ -13,15 +13,17 @@ contract Entity is Structure, IEntity {
     */
     address owner;
     IContract contractInstance;
+    address contractAddress;
 
     constructor () {
         owner = msg.sender;
     }
 
-    function set(address contractAddress) public {
+    function set(address _contractAddress) public {
         require(msg.sender == owner, "101");
 
-        contractInstance = IContract(contractAddress);
+        contractInstance = IContract(_contractAddress);
+        contractAddress = _contractAddress;
     }
 
     /*
@@ -29,7 +31,8 @@ contract Entity is Structure, IEntity {
     */
 
     function createCPO(address CPOaddress, bytes5 name) public view returns (CPO memory) {
-        require(CPOaddress == msg.sender, "203");
+        require(msg.sender == contractAddress, "102");
+        require(CPOaddress == tx.origin, "202");
         require(!contractInstance.isRegistered(CPOaddress), "201");
         require(name.length != 0, "204");
 
@@ -41,7 +44,8 @@ contract Entity is Structure, IEntity {
     }
 
     function createCS(address CSaddress, address CPOaddress, bytes3 region, uint powerDischarge) public view returns (CS memory) {
-        require(CPOaddress == msg.sender, "303");
+        require(msg.sender == contractAddress, "102");
+        require(CPOaddress == tx.origin, "302");
         require(contractInstance.isCPO(CPOaddress), "202");
         require(!contractInstance.isRegistered(CSaddress), "301");
         require(powerDischarge > 0, "304");
@@ -57,7 +61,8 @@ contract Entity is Structure, IEntity {
     }
 
     function createEV(address EVaddress, uint maxCapacity, uint batteryEfficiency) public view returns (EV memory) {
-        require(EVaddress == msg.sender, "403");
+        require(msg.sender == contractAddress, "102");
+        require(EVaddress == tx.origin, "402");
         require(!contractInstance.isRegistered(EVaddress), "401");
         require(maxCapacity != 0, "404");
         require(batteryEfficiency > 0 && batteryEfficiency < 100, "405");

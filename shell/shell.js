@@ -10,6 +10,8 @@ await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
 
+console.log("DEBUG OWNER: ", await operator.debugOwner());
+
 console.log("DEBUG EV: ", await car.debugEV());
 console.log("DEBUG CPO: ", await operator.debugCPO());
 console.log("DEBUG CS: ", await station.debugCS());
@@ -35,9 +37,26 @@ console.log("EV status: " + await car.isRegistered() + " " + await car.isEV());
 console.log("CPO status: " + await operator.isRegistered() + " " + await operator.isCPO());
 console.log("CS status: " + await station.isRegistered() + " " + await station.isCS());
 
-console.log("DEBUG EV: ", await car.debugEV());
-console.log("DEBUG CPO: ", await operator.debugCPO());
-console.log("DEBUG CS: ", await station.debugCS());
+console.log("DEBUG DEAL: ", await car.debugDeal(car.account.address, operator.account.address));
+
+// Propose deal
+operator.listen('DealProposed').on('data', async log => {
+    console.log("New deal arrived: ", log.returnValues);
+    console.log("ev: ", log.returnValues.ev);
+    console.log("id: ", log.returnValues.deal.id);
+    console.log("Answering deal...");
+    await operator.respondDeal(log.returnValues.ev, true, log.returnValues.deal.id);
+});
+car.listen('DealResponded').on('data', log => {
+    console.log("Response to deal: ", log.returnValues);
+    console.log("Accepted? ", log.returnValues.deal.accepted);
+});
+
+console.log("Proposing deal...");
+await car.proposeDeal(operator.account.address);
+
+console.log("DEBUG DEAL: ", await car.debugDeal(car.account.address, operator.account.address));
+
 
 if (false) {
     console.log("DEBUG EV: ", await car.debugEV());
@@ -176,10 +195,3 @@ if (false) {
     console.log(car.getTime());
     await car.stopCharging(station.account.address);
 }
-
-function delay(time) {
-    return new Promise(resolve => setTimeout(resolve, time));
-}
-await delay(1000);
-console.log("Done");
-process.exit();

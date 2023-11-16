@@ -46,18 +46,27 @@ async function connect(name, args) {
     ).send();
 }
 
-const contract_address = await deploy("Contract");
+async function connectMulti(name, ad1, ad2) {
+    console.log("Connecting...", name, "with", ad1, ad2)
+    const abi = JSON.parse(await fs.readFile("contracts/abi/"+name+".abi", "utf-8"));
+    const contract_address = await fs.readFile("contracts/address/"+name+".address", "utf-8");
 
-const entity_address = await deploy("Entity");
+    const contract = new web3.eth.Contract(abi, contract_address);
+    contract.defaultAccount = account.address;
 
-await connect("Contract", entity_address);
-await connect("Entity", contract_address);
-
-
-
-function delay(time) {
-    return new Promise(resolve => setTimeout(resolve, time));
+    return await contract.methods.set(
+        ad1,
+        ad2
+    ).send();
 }
-await delay(1000);
+
+const contract_address = await deploy("Contract");
+const entity_address = await deploy("Entity");
+const deal_address = await deploy("Deal");
+
+await connectMulti("Contract", entity_address, deal_address);
+await connect("Entity", contract_address);
+await connect("Deal", contract_address);
+
 console.log("Done");
 process.exit();
