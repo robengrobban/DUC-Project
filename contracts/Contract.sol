@@ -106,14 +106,15 @@ contract Contract {
         bool CSaccepted;
         bool finished;
         bool smartCharging;
-        uint targetCharge;
-        uint startCharge;
-        uint startTime;
-        uint chargeTime;
-        uint idleTime;
-        uint maxTime;
-        uint endTime;
-        uint finishTime;
+        uint targetCharge; // Watt seconds of target charge
+        uint endCharge; // Watt seconds of end charge, if full scheme is used
+        uint startCharge; // Watt seconds of start charge
+        uint startTime; // Unix time for when charging starts
+        uint chargeTime; // Seconds of time CS is charging EV
+        uint idleTime; // Seconds of time CS is not charging EV, based on user preferences of max rates
+        uint maxTime; // The maximum amount of time a scheme can run for (ends at deal end or when new (unkown) rates start)
+        uint endTime; // Unix time for when charging should end
+        uint finishTime; // Unix time for when charing actually end
         bytes3 region;
         PrecisionNumber price;
         uint priceInWei;
@@ -808,7 +809,8 @@ contract Contract {
             totalCost += slotCost;
             chargeTimeLeft -= timeInSlot;
             elapsedTime += timeInSlot; 
-
+            
+            scheme.endCharge += T.cs.powerDischarge * timeInSlot * (useSlot ? 1 : 0);
             scheme.durations[index] = timeInSlot;
             scheme.prices[index] = slotCost;
 
