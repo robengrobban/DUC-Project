@@ -8,17 +8,36 @@ interface IContract is Structure {
 
     function isRegistered(address) external view returns (bool);
     function isCPO(address) external view returns (bool);
+    function getCPO(address) external view returns (CPO memory);
     function isCS(address) external view returns (bool);
+    function getCS(address) external view returns (CS memory);
     function isEV(address) external view returns (bool);
+    function getEV(address) external view returns (EV memory);
+    function getTriplett(address, address, address) external view returns (Triplett memory);
+    function getTriplett(address, address) external view returns (Triplett memory);
 
     function getDeal(address, address) external view returns (Deal memory);
     function isDealActive(address, address) external view returns (bool);
 
+    function getConnection(address, address) external view returns (Connection memory);
     function isConnected(address, address) external view returns (bool);
 
+    function getRate(address, bytes3) external view returns (Rate memory);
+    function transferToNewRates(address, bytes3) external;
+
     function isCharging(address, address) external view returns (bool);
+    function getCharging(address, address) external view returns (ChargingScheme memory);
     function isSmartCharging(address, address) external view returns (bool);
 
     function isRegionAvailable(address, bytes3) external view returns (bool);
+
+    function getDeposit(address) external view returns (uint);
+
+    function getNextRateChangeAtTime(uint time) external pure returns (uint);
+    function getNextRateSlot(uint currentTime) external pure returns (uint);
+    function getRateSlot(uint time) external pure returns (uint);
+    function paddPrecisionNumber(PrecisionNumber memory a, PrecisionNumber memory b) external pure returns (PrecisionNumber memory, PrecisionNumber memory);
+    function calculateChargeTimeInSeconds(uint charge, uint discharge, uint efficiency) external pure returns (uint);
+    function priceToWei(PrecisionNumber memory price) external pure returns (uint);
 
 }

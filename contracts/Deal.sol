@@ -25,12 +25,18 @@ contract Deal is Structure, IDeal {
         contractInstance = IContract(_contractAddress);
         contractAddress = _contractAddress;
     }
+    
+    /*
+    * VARIABLES
+    */
+
+    uint nextDealId = 0;
 
     /*
     * PUBLIC FUNCTIONS
     */
 
-    function proposeDeal(address EVaddress, address CPOaddress, uint dealId) public view returns (Deal memory) {
+    function proposeDeal(address EVaddress, address CPOaddress) public returns (Deal memory) {
         require(msg.sender == contractAddress, "102");
         require(EVaddress == tx.origin, "402");
         require(contractInstance.isEV(EVaddress), "402");
@@ -49,7 +55,7 @@ contract Deal is Structure, IDeal {
             precision: 1000000000
         });
         Deal memory proposedDeal = Deal({
-            id: dealId,
+            id: getNextDealId(),
             EV: EVaddress,
             CPO: CPOaddress,
             accepted: false,
@@ -63,42 +69,49 @@ contract Deal is Structure, IDeal {
         return proposedDeal;
     }
 
-    function verifyRevertProposedDeal(address EVaddress, address CPOaddress, uint dealId, Deal memory proposedDeal) public view {
+    function revertProposedDeal(address EVaddress, address CPOaddress, uint dealId) public view returns (Deal memory) {
         require(msg.sender == contractAddress, "102");
         require(EVaddress == tx.origin, "402");
         require(contractInstance.isEV(EVaddress), "403");
         require(contractInstance.isCPO(CPOaddress), "203");
-        require(proposedDeal.EV != address(0), "503");
-        require(!proposedDeal.accepted, "504");
-        require(proposedDeal.id == dealId, "505");
-        /*if ( proposedDeal.EV == address(0) ) {
-            revert("503");
-        }
-        else if ( proposedDeal.accepted ) {
-            revert("504");
-        }
-        else if ( proposedDeal.id != dealId ) {
-            revert("505");
-        }*/
+
+        Deal memory deal = contractInstance.getDeal(EVaddress, CPOaddress);
+
+        require(deal.EV != address(0), "503");
+        require(!deal.accepted, "504");
+        require(deal.id == dealId, "505");
+
+        Deal memory deleted;
+        return deleted;
     }
 
-    function verifyRespondDeal(address CPOaddress, address EVaddress, uint dealId, Deal memory proposedDeal) public view {
+    function respondDeal(address CPOaddress, address EVaddress, bool accepted, uint dealId) public view returns (Deal memory) {
         require(msg.sender == contractAddress, "102");
         require(CPOaddress == tx.origin, "202");
         require(contractInstance.isCPO(CPOaddress), "203");
         require(contractInstance.isEV(EVaddress), "403");
-        require(proposedDeal.EV != address(0), "503");
-        require(!proposedDeal.accepted, "504");
-        require(proposedDeal.id == dealId, "505");
-        /*if ( proposedDeal.EV == address(0) ) {
-            revert("503");
+
+        Deal memory deal = contractInstance.getDeal(EVaddress, CPOaddress);
+
+        require(deal.EV != address(0), "503");
+        require(!deal.accepted, "504");
+        require(deal.id == dealId, "505");
+
+        if ( accepted ) {
+            deal.accepted = accepted;
+            return deal;
         }
-        else if ( proposedDeal.accepted ) {
-            revert("504");
-        }
-        else if ( proposedDeal.id != dealId ) {
-            revert("505");
-        }*/
+        Deal memory deleted;
+        return deleted;    
+    }
+
+    /*
+    * PRIVATE FUNCTIONS
+    */
+
+    function getNextDealId() private returns (uint) {
+        nextDealId++;
+        return nextDealId;
     }
 
 }
