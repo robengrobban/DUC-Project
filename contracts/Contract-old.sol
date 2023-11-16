@@ -107,7 +107,7 @@ contract Contract {
         bool finished;
         bool smartCharging;
         uint targetCharge; // Watt seconds of target charge
-        uint endCharge; // Watt seconds of end charge, if full scheme is used
+        uint outputCharge; // Watt seconds of output charge, if full scheme is used
         uint startCharge; // Watt seconds of start charge
         uint startTime; // Unix time for when charging starts
         uint chargeTime; // Seconds of time CS is charging EV
@@ -302,6 +302,8 @@ contract Contract {
         require(isEV(EVaddress), "403");
         require(isCS(CSaddress), "303");
         require(nonce != 0, "601");
+
+        // TODO : Check if there exists a deal?
 
         // Check if connection exists
         Connection memory currentConnection = connections[EVaddress][CSaddress];
@@ -598,7 +600,7 @@ contract Contract {
 
     }
 
-    function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public payable {
+    /*function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public payable {
         require(msg.sender == EVaddress, "402");
         require(isCS(CSaddress), "303");
         require(isEV(EVaddress), "403");
@@ -636,7 +638,7 @@ contract Contract {
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
         emit ChargingRequested(EVaddress, CSaddress, scheme);
-    }
+    }*/
 
     /*
     * PRIVATE FUNCTIONS
@@ -810,7 +812,7 @@ contract Contract {
             chargeTimeLeft -= timeInSlot;
             elapsedTime += timeInSlot; 
             
-            scheme.endCharge += T.cs.powerDischarge * timeInSlot * (useSlot ? 1 : 0);
+            scheme.outputCharge += T.cs.powerDischarge * timeInSlot * (useSlot ? 1 : 0);
             scheme.durations[index] = timeInSlot;
             scheme.prices[index] = slotCost;
 
