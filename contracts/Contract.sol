@@ -3,18 +3,27 @@
 pragma solidity ^0.8.23;
 
 import './Structure.sol';
+import './IContract.sol';
+import './IEntity.sol';
 
-contract Contract is Structure {
+contract Contract is Structure, IContract {
     
     /*
     * CONTRACT MANAGMENT
     */
     address owner;
+    IEntity entityInstance;
 
     constructor () {
         owner = msg.sender;
     }
 
+    function set(address entityAddress) public {
+        require(msg.sender == owner, "101");
+
+        entityInstance = IEntity(entityAddress);
+
+    }
     
 
     /*
@@ -83,7 +92,7 @@ contract Contract is Structure {
         require(!isRegistered(CPOaddress), "201");
         require(name.length != 0, "204");
 
-        CPOs[CPOaddress] = createCPO(CPOaddress, name);
+        CPOs[CPOaddress] = entityInstance.createCPO(CPOaddress, name);
 
         emit CPORegistered(CPOaddress);
     }
@@ -95,7 +104,7 @@ contract Contract is Structure {
         require(powerDischarge > 0, "304");
         require(region.length != 0, "305");
 
-        CSs[CSaddress] = createCS(CSaddress, CPOaddress, region, powerDischarge);
+        CSs[CSaddress] = entityInstance.createCS(CSaddress, CPOaddress, region, powerDischarge);
 
         emit CSRegistered(CSaddress, CPOaddress);
     }
@@ -106,7 +115,7 @@ contract Contract is Structure {
         require(maxCapacity != 0, "404");
         require(batteryEfficiency > 0 && batteryEfficiency < 100, "405");
 
-        EVs[EVaddress] = createEV(EVaddress, maxCapacity, batteryEfficiency);
+        EVs[EVaddress] = entityInstance.createEV(EVaddress, maxCapacity, batteryEfficiency);
 
         emit EVRegistered(EVaddress);
     }
@@ -543,33 +552,6 @@ contract Contract is Structure {
     /*
     * PRIVATE FUNCTIONS
     */
-
-    function createCPO(address CPOaddress, bytes5 name) private pure returns (CPO memory) {
-        CPO memory cpo;
-        cpo.exist = true;
-        cpo.name = name;
-        cpo._address = CPOaddress;
-        return cpo;
-    }
-
-    function createCS(address CSaddress, address CPOaddress, bytes3 region, uint powerDischarge) private pure returns (CS memory) {
-        CS memory cs;
-        cs.exist = true;
-        cs._address = CSaddress;
-        cs.cpo = CPOaddress;
-        cs.region = region;
-        cs.powerDischarge = powerDischarge;
-        return cs;    
-    }
-
-    function createEV(address EVaddress, uint maxCapacitiy, uint batteryEfficiency) private pure returns (EV memory) {
-        EV memory ev;
-        ev.exist = true;
-        ev._address = EVaddress;
-        ev.maxCapacity = maxCapacitiy;
-        ev.batteryEfficiency = batteryEfficiency;
-        return ev;
-    }
 
     function getTriplett(address EVaddress, address CSaddress, address CPOaddress) private view returns (Triplett memory) {
         return Triplett({

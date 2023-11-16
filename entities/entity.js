@@ -44,8 +44,8 @@ class Entity {
     }
 
     async connectContract() {
-        let abi = JSON.parse(await fs.readFile("contracts/Contract.abi", "utf-8"));
-        let contract_address = await fs.readFile("contracts/Contract.address", "utf-8");
+        let abi = JSON.parse(await fs.readFile("contracts/abi/Contract.abi", "utf-8"));
+        let contract_address = await fs.readFile("contracts/address/Contract.address", "utf-8");
 
         this.contract = new this.web3.eth.Contract(abi, contract_address);
         this.contract.defaultAccount = this.account.address;
