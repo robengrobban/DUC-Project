@@ -158,6 +158,8 @@ contract Contract {
     event ChargingAcknowledged(address indexed ev, address indexed cs, ChargingScheme scheme);
     event ChargingStopped(address indexed ev, address indexed cs, ChargingScheme scheme, uint finalPriceInWei);
 
+    event SmartChargingScheduled(address indexed ev, address indexed cs, ChargingScheme scheme);
+
     /*
     * PUBLIC FUNCTIONS
     */
@@ -564,6 +566,62 @@ contract Contract {
         scheme.region = T.cs.region;
 
         return generateSchemeSlots(scheme, T);
+    }
+
+    function scheduleSmartCharging(address EVaddress, address CSaddress) public {
+        require(msg.sender == EVaddress || msg.sender == CSaddress, "402/302");
+        require(isEV(EVaddress), "403");
+        require(isCS(CSaddress), "303");
+        
+        CS memory cs = CSs[CSaddress];
+                
+        require(isDealActive(EVaddress, cs.cpo), "503");
+        require(isConnected(EVaddress, CSaddress), "605");
+        require(isRegionAvailable(cs.cpo, cs.region), "804");
+        require(!isCharging(EVaddress, CSaddress), "702");
+
+        // Get smart charging spot
+        ChargingScheme memory scheme = getSmartChargingSpot();
+        // TODO : Make sure that it is a SmartCharging marked
+        chargingSchemes[EVaddress][CSaddress] = scheme;
+
+        // Emit event regarding 
+        emit SmartChargingScheduled(EVaddress, CSaddress, scheme);
+
+    }
+    function getSmartChargingSpot() private view returns (ChargingScheme memory) {
+        
+    }
+
+    function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public {
+        require(msg.sender == CSaddress, "302");
+        require(isCS(CSaddress), "303");
+        require(isEV(EVaddress), "403");
+        require(schemeId > 0, "703");
+
+        CS memory cs = CSs[CSaddress];
+
+        require(isDealActive(EVaddress, cs.cpo), "503");
+        require(isConnected(EVaddress, CSaddress), "605");
+
+        // Get scheme
+        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
+        require(scheme.id == schemeId, "704");
+        require(scheme.smartCharging, "710");
+        require(!isCharging(EVaddress, CSaddress), "702");
+
+        if ( scheme.startTime < block.timestamp ) {
+            emit ChargingSchemeTimeout(EVaddress, CSaddress, scheme);
+            ChargingScheme memory blank;
+            chargingSchemes[EVaddress][CSaddress] = blank;
+            revert("705");
+        }
+
+        // Everything good, assume that charging will start
+        scheme.CSaccepted = true;
+        chargingSchemes[EVaddress][CSaddress] = scheme;
+
+        emit ChargingAcknowledged(EVaddress, CSaddress, scheme);
     }
 
     /*
