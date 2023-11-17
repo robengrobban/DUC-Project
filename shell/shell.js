@@ -147,3 +147,32 @@ if (false) {
     console.log(car.getTime());
     await car.stopCharging(station.account.address);
 }
+if (false) {
+    car.listen("SmartChargingScheduled").on('data', async log => {
+        console.log("EV new smart charging schedule...", log.returnValues);
+        // Accept
+        console.log("EV accept smart charging schedule... ", log.returnValues.scheme.id);
+        let schemeId = log.returnValues.scheme.id;
+        let CSaddress = log.returnValues.cs;
+        await car.acceptSmartCharging(100, CSaddress, schemeId);
+    });
+
+    if (true) {
+        car.listen('ChargingAcknowledged').on('data', log => {
+            console.log("EV got start charging event ", log.returnValues);
+        });
+        station.listen('ChargingAcknowledged').on('data', log => {
+            console.log("CS got start charging event ", log.returnValues);
+        });
+        station.listen('ChargingRequested').on('data', async log => {
+            // Start charging
+            console.log("CS charging request ", log.returnValues);
+            let schemeId = log.returnValues.scheme.id;
+            let EVaddress = log.returnValues.ev;
+            console.log("CS is responding to charging request ", schemeId);
+            await station.acknowledgeCharging(EVaddress, schemeId);
+        });
+    }
+    console.log("Scheduling smart charging...");
+    car.scheduleSmartCharging(station.account.address);
+}

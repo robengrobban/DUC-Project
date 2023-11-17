@@ -11,5 +11,8 @@ interface ICharging is Structure {
     function stopCharging(address, address) external view returns (ChargingScheme memory);
 
     function getChargingScheme(address, address, uint, uint, uint) external view returns (ChargingScheme memory);
+
+    function scheduleSmartCharging(address, address) external returns (ChargingScheme memory);
+    function acceptSmartCharging(address, address, uint, uint) external view returns (ChargingScheme memory);
     
 }

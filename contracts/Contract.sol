@@ -264,81 +264,36 @@ contract Contract is Structure, IContract {
 
         // Inform about charging scheme termination
         emit ChargingStopped(EVaddress, CSaddress, scheme, priceInWei);
+    }
 
+    function scheduleSmartCharging(address EVaddress, address CSaddress) public {
+        // Get smart charging spot
+        ChargingScheme memory scheme = chargingInstance.scheduleSmartCharging(EVaddress, CSaddress);
+        chargingSchemes[EVaddress][CSaddress] = scheme;
+
+        // Emit event regarding 
+        emit SmartChargingScheduled(EVaddress, CSaddress, scheme);
+    }
+
+    function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public payable {
+        ChargingScheme memory scheme = chargingInstance.acceptSmartCharging(EVaddress, CSaddress, schemeId, msg.value);
+
+        // Timeout
+        if ( scheme.id == 0 ) {
+            emit ChargingSchemeTimeout(EVaddress, CSaddress, scheme);
+            chargingSchemes[EVaddress][CSaddress] = scheme;
+            revert("705");
+        }
+
+        // Add to deposits, and add smart charging scheme, waiting for its acceptance
+        deposits[EVaddress] += msg.value;
+        chargingSchemes[EVaddress][CSaddress] = scheme;
+        emit ChargingRequested(EVaddress, CSaddress, scheme);
     }
 
     function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
         return chargingInstance.getChargingScheme(EVaddress, CSaddress, startTime, startCharge, targetCharge);
     }
-
-    /*function scheduleSmartCharging(address EVaddress, address CSaddress) public {
-        require(msg.sender == EVaddress || msg.sender == CSaddress, "402/302");
-        require(isEV(EVaddress), "403");
-        require(isCS(CSaddress), "303");
-        
-        CS memory cs = CSs[CSaddress];
-                
-        require(isDealActive(EVaddress, cs.cpo), "503");
-        require(isConnected(EVaddress, CSaddress), "605");
-        require(isRegionAvailable(cs.cpo, cs.region), "804");
-        require(!isCharging(EVaddress, CSaddress), "702");
-
-        // Transfer to new rates
-        transferToNewRates(cs.cpo, cs.region);
-
-        // Get smart charging spot
-        ChargingScheme memory scheme = getSmartChargingSpot();
-        // TODO : Make sure that it is a SmartCharging marked
-        chargingSchemes[EVaddress][CSaddress] = scheme;
-
-        // Emit event regarding 
-        emit SmartChargingScheduled(EVaddress, CSaddress, scheme);
-
-    }
-    function getSmartChargingSpot() private view returns (ChargingScheme memory) {
-        // TODO : Implement
-
-    }
-
-    function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public payable {
-        require(msg.sender == EVaddress, "402");
-        require(isCS(CSaddress), "303");
-        require(isEV(EVaddress), "403");
-        require(schemeId > 0, "703");
-
-        CS memory cs = CSs[CSaddress];
-
-        require(isDealActive(EVaddress, cs.cpo), "503");
-        require(isConnected(EVaddress, CSaddress), "605");
-
-        // Get scheme
-        ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
-        require(scheme.id == schemeId, "704");
-        require(scheme.smartCharging, "710");
-        require(!isCharging(EVaddress, CSaddress), "702");
-
-        if ( scheme.startTime < block.timestamp ) {
-            emit ChargingSchemeTimeout(EVaddress, CSaddress, scheme);
-            ChargingScheme memory blank;
-            chargingSchemes[EVaddress][CSaddress] = blank;
-            revert("705");
-        }
-
-        // Check funds
-        uint moneyAvailable = msg.value + deposits[EVaddress];
-        uint moneyRequired = scheme.priceInWei;
-
-        require(moneyAvailable >= moneyRequired, "901");
-
-        // Add to deposits
-        deposits[EVaddress] += msg.value;
-
-        // Everything good, accept the charging scheme of type smart charging
-        scheme.EVaccepted = true;
-        chargingSchemes[EVaddress][CSaddress] = scheme;
-
-        emit ChargingRequested(EVaddress, CSaddress, scheme);
-    }*/
 
     function getNextRateChangeAtTime(uint time) public pure returns (uint) {
         uint secondsUntilRateChange = RATE_CHANGE_IN_SECONDS - (time % RATE_CHANGE_IN_SECONDS);

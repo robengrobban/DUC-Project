@@ -41,7 +41,7 @@ contract Charging is Structure, ICharging {
         require(tx.origin == EVaddress, "402");
         require(contractInstance.isEV(EVaddress), "403");
         require(contractInstance.isCS(CSaddress), "303");
-        require(startTime >= block.timestamp, "701");
+        require(startTime > block.timestamp, "701");
 
         CS memory cs = contractInstance.getCS(CSaddress);
                 
@@ -165,6 +165,76 @@ contract Charging is Structure, ICharging {
         scheme.region = T.cs.region;
 
         return generateSchemeSlots(scheme, T);
+    }
+
+    function scheduleSmartCharging(address EVaddress, address CSaddress) public returns (ChargingScheme memory) {
+        require(msg.sender == contractAddress, "102");
+        require(tx.origin == EVaddress || tx.origin == CSaddress, "402/302");
+        require(contractInstance.isEV(EVaddress), "403");
+        require(contractInstance.isCS(CSaddress), "303");
+        
+        CS memory cs = contractInstance.getCS(CSaddress);
+                
+        require(contractInstance.isDealActive(EVaddress, cs.cpo), "503");
+        require(contractInstance.isConnected(EVaddress, CSaddress), "605");
+        require(contractInstance.isRegionAvailable(cs.cpo, cs.region), "804");
+        require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
+
+        // Transfer to new rates
+        contractInstance.transferToNewRates(cs.cpo, cs.region);
+
+        // Get smart charging spot
+        return getSmartChargingSpot(EVaddress, CSaddress);
+    }
+    function getSmartChargingSpot(address EVaddress, address CSaddress) private returns (ChargingScheme memory) {
+        // TODO : Implement
+
+        CS memory cs = contractInstance.getCS(CSaddress);
+
+        ChargingScheme memory scheme;
+
+        scheme.id = getNextSchemeId();
+        scheme.smartCharging = true;
+        scheme.region = cs.region;
+        scheme.startTime = block.timestamp + 1 weeks;
+
+        return scheme;
+
+    }
+
+    function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId, uint deposit) public view returns (ChargingScheme memory) {
+        require(msg.sender == contractAddress, "102");
+        require(tx.origin == EVaddress, "402");
+        require(contractInstance.isCS(CSaddress), "303");
+        require(contractInstance.isEV(EVaddress), "403");
+        require(schemeId > 0, "703");
+
+        CS memory cs = contractInstance.getCS(CSaddress);
+
+        require(contractInstance.isDealActive(EVaddress, cs.cpo), "503");
+        require(contractInstance.isConnected(EVaddress, CSaddress), "605");
+
+        // Get scheme
+        ChargingScheme memory scheme = contractInstance.getCharging(EVaddress, CSaddress);
+        require(scheme.id == schemeId, "704");
+        require(scheme.smartCharging, "710");
+        require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
+
+        if ( scheme.startTime < block.timestamp ) {
+            ChargingScheme memory deleted;
+            return deleted;
+        }
+
+        // Check funds
+        uint moneyAvailable = deposit + contractInstance.getDeposit(EVaddress);
+        uint moneyRequired = scheme.priceInWei;
+
+        require(moneyAvailable >= moneyRequired, "901");
+
+        // Smart charging accepted by EV
+        scheme.EVaccepted = true;
+
+        return scheme;
     }
 
     /*
