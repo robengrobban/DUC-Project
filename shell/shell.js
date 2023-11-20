@@ -147,7 +147,7 @@ if (false) {
     console.log(car.getTime());
     await car.stopCharging(station.account.address);
 }
-if (true) {
+if (false) {
     car.listen("SmartChargingScheduled").on('data', async log => {
         console.log("EV new smart charging schedule...", log.returnValues);
         // Accept
