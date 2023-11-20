@@ -209,7 +209,7 @@ contract Charging is Structure, ICharging {
         scheme.maxTime = maxTime;
         scheme = generateSchemeSlots(scheme, T);
 
-        while ( startTime < latestStartTime ) {
+        while ( startTime <= latestStartTime ) {
             
             // The start time for smart charging
             startTime += RATE_SLOT_PERIOD;
