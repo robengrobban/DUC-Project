@@ -175,7 +175,7 @@ contract Charging is Structure, ICharging {
         // Get smart charging spot
         return getSmartChargingSpot(T, startCharge);
     }
-    
+
     function getSmartChargingSpot(Triplett memory T, uint startCharge) private view returns (ChargingScheme memory) {
         // Get the target charging
         uint targetCharge = T.ev.maxCapacity;
@@ -228,6 +228,7 @@ contract Charging is Structure, ICharging {
             suggestion.startTime = currentTime;
             suggestion.maxTime = maxTime;
             suggestion.finishTime = latestStartTime;
+            // TODO : Skapa en mycket mer lite version av GenerateSchemeSlots, kanske en som bara tar fram pris. Så efter man har priset, kan man generera slotet
             suggestion = generateSchemeSlots(suggestion, T);
 
             // If charging price is lower, and if active time is better or equal than previous active time, choose suggested time
