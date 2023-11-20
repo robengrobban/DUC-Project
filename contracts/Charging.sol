@@ -145,7 +145,7 @@ contract Charging is Structure, ICharging {
         // Calculate charge time 
         uint chargeTime = contractInstance.calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
-        // Calculate maximum time left in charging
+        // Calculate maximum possible charging time
         uint maxTime = possibleChargingTime(T, startTime);
 
         scheme.chargeTime = chargeTime;
@@ -175,59 +175,69 @@ contract Charging is Structure, ICharging {
         // Get smart charging spot
         return getSmartChargingSpot(T, startCharge);
     }
-    function getSmartChargingSpot(Triplett memory T, uint startCharge) private returns (ChargingScheme memory) {
-        // TODO : Implement
-
+    
+    function getSmartChargingSpot(Triplett memory T, uint startCharge) private view returns (ChargingScheme memory) {
         // Get the target charging
-        uint targetCharge = T.ev.maxCapacity - startCharge;
+        uint targetCharge = T.ev.maxCapacity;
 
         // Get the charge time
         uint chargeTime = contractInstance.calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
-        ChargingScheme memory scheme;
+        // The start time for smart charging
+        uint currentTime = contractInstance.getNextRateSlot(block.timestamp);
 
-        scheme.id = getNextSchemeId();
+        // The max time left for charging
+        uint maxTime = possibleChargingTime(T, currentTime);
+
+        // Latset time smart charging can start to accomidate entire charge period (this does not account for preferences)
+        uint latestStartTime = currentTime+maxTime-chargeTime;
+
+        // Get the first possible start time
+        ChargingScheme memory scheme;
+        scheme.id = 0;//getNextSchemeId();
         scheme.smartCharging = true;
         scheme.region = T.cs.region;
         scheme.startCharge = startCharge;
         scheme.targetCharge = targetCharge;
         scheme.chargeTime = chargeTime;
 
-
-        // The start time for smart charging
-        uint startTime = contractInstance.getNextRateSlot(block.timestamp + 2 minutes);
-
-        // The max time left for charging
-        uint maxTime = possibleChargingTime(T, startTime);
-
-        // Latset time smart charging can start to accomidate entire charge period (this does not account for preferences)
-        uint latestStartTime = startTime+maxTime-chargeTime;
-
-        // Get the first possible start time
-
-        scheme.startTime = startTime;
+        scheme.startTime = currentTime;
         scheme.maxTime = maxTime;
+        scheme.finishTime = latestStartTime;
         scheme = generateSchemeSlots(scheme, T);
 
-        while ( startTime <= latestStartTime ) {
-            
+        uint index = 0;
+        while ( true ) {
+            index++;
             // The start time for smart charging
-            startTime += RATE_SLOT_PERIOD;
+            currentTime += RATE_SLOT_PERIOD;
+            if ( currentTime > latestStartTime ) {
+                break;
+            }
+            maxTime = possibleChargingTime(T, currentTime);
 
             // Get new suggested charging scheme
-            scheme.startTime = startTime;
-            scheme.maxTime = maxTime;
-            ChargingScheme memory suggestion = generateSchemeSlots(scheme, T);
+            ChargingScheme memory suggestion;
+            suggestion.id = index * 100;
+            suggestion.smartCharging = true;
+            suggestion.region = T.cs.region;
+            suggestion.startCharge = startCharge;
+            suggestion.targetCharge = targetCharge;
+            suggestion.chargeTime = chargeTime;
+
+            suggestion.startTime = currentTime;
+            suggestion.maxTime = maxTime;
+            suggestion.finishTime = latestStartTime;
+            suggestion = generateSchemeSlots(suggestion, T);
 
             // If charging price is lower, and if active time is better or equal than previous active time, choose suggested time
-            if ( suggestion.priceInWei < scheme.priceInWei && suggestion.activeTime >= scheme.activeTime ) {
+            if ( true /*suggestion.priceInWei < scheme.priceInWei && suggestion.activeTime >= scheme.activeTime*/ ) {
                 scheme = suggestion;
             }
 
         }
 
         return scheme;
-
     }
 
     function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId, uint deposit) public view returns (ChargingScheme memory) {
@@ -386,15 +396,15 @@ contract Charging is Structure, ICharging {
     function possibleChargingTime(Triplett memory T, uint startTime) private view returns (uint) {
         uint maxTime = contractInstance.getDeal(T.ev._address, T.cpo._address).endDate - startTime;
         if ( contractInstance.getRate(T.cpo._address, T.cs.region).changeDate == 0 ) {
-            uint temp = contractInstance.getNextRateChangeAtTime(startTime) - startTime;
-            if ( temp < maxTime ) {
-                maxTime = temp;
+            uint currentRateEdge = contractInstance.getNextRateChangeAtTime(startTime) - startTime;
+            if ( maxTime > currentRateEdge ) {
+                return currentRateEdge;
             }
         }
         else {
-            uint temp = contractInstance.getNextRateChangeAtTime(contractInstance.getRate(T.cpo._address, T.cs.region).changeDate) - startTime;
-            if ( maxTime < temp ) {
-                temp = maxTime;
+            uint nextRateEdge = contractInstance.getNextRateChangeAtTime(contractInstance.getRate(T.cpo._address, T.cs.region).changeDate) - startTime;
+            if ( maxTime > nextRateEdge ) {
+                return nextRateEdge;
             }
         }
         return maxTime;

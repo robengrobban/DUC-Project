@@ -116,6 +116,12 @@ class Entity {
             address
         ).call();
     }
+    async debugRates(address, region) {
+        return await this.contract.methods.debugRates(
+            address,
+            this.web3.utils.fromAscii(region)
+        ).call();
+    }
 
 }
 
