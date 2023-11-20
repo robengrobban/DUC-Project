@@ -17,6 +17,7 @@ if (false) {
     console.log("DEBUG DEAL: ", await car.debugDeal(car.account.address, operator.account.address));
     console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
     console.log("DEBUG CHARGING SCHEME: ", await car.debugChargingScheme(car.account.address, station.account.address));
+    console.log("DEBUG RATING: ", await operator.debugRates(operator.account.address, "SE1"));
     console.log("EV MONEY: ", await car.balance());
     console.log("EV DEPOSIT: ", await car.getDeposit());
     console.log("CPO MONEY: ", await operator.balance());
@@ -147,7 +148,7 @@ if (false) {
     console.log(car.getTime());
     await car.stopCharging(station.account.address);
 }
-if (false) {
+if (true) {
     car.listen("SmartChargingScheduled").on('data', async log => {
         console.log("EV new smart charging schedule...", log.returnValues);
         // Accept
