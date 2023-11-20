@@ -142,23 +142,11 @@ contract Charging is Structure, ICharging {
         scheme.targetCharge = targetCharge;
         scheme.startTime = startTime;
 
-        // Calculate charge time
+        // Calculate charge time 
         uint chargeTime = contractInstance.calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
         // Calculate maximum time left in charging
-        uint maxTime = contractInstance.getDeal(EVaddress, T.cpo._address).endDate - startTime;
-        if ( contractInstance.getRate(T.cpo._address, T.cs.region).changeDate == 0 ) {
-            uint temp = contractInstance.getNextRateChangeAtTime(startTime) - startTime;
-            if ( temp < maxTime ) {
-                maxTime = temp;
-            }
-        }
-        else {
-            uint temp = contractInstance.getNextRateChangeAtTime(contractInstance.getRate(T.cpo._address, T.cs.region).changeDate) - startTime;
-            if ( maxTime < temp ) {
-                temp = maxTime;
-            }
-        }
+        uint maxTime = possibleChargingTime(T, startTime);
 
         scheme.chargeTime = chargeTime;
         scheme.maxTime = maxTime;
@@ -166,37 +154,77 @@ contract Charging is Structure, ICharging {
 
         return generateSchemeSlots(scheme, T);
     }
-
-    function scheduleSmartCharging(address EVaddress, address CSaddress) public returns (ChargingScheme memory) {
+    
+    function scheduleSmartCharging(address EVaddress, address CSaddress, uint startCharge) public returns (ChargingScheme memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == EVaddress || tx.origin == CSaddress, "402/302");
         require(contractInstance.isEV(EVaddress), "403");
         require(contractInstance.isCS(CSaddress), "303");
         
-        CS memory cs = contractInstance.getCS(CSaddress);
+        Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress);
                 
-        require(contractInstance.isDealActive(EVaddress, cs.cpo), "503");
+        require(contractInstance.isDealActive(EVaddress, T.cs.cpo), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
-        require(contractInstance.isRegionAvailable(cs.cpo, cs.region), "804");
+        require(contractInstance.isRegionAvailable(T.cs.cpo, T.cs.region), "804");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
+        require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
 
         // Transfer to new rates
-        contractInstance.transferToNewRates(cs.cpo, cs.region);
+        contractInstance.transferToNewRates(T.cs.cpo, T.cs.region);
 
         // Get smart charging spot
-        return getSmartChargingSpot(EVaddress, CSaddress);
+        return getSmartChargingSpot(T, startCharge);
     }
-    function getSmartChargingSpot(address EVaddress, address CSaddress) private returns (ChargingScheme memory) {
+    function getSmartChargingSpot(Triplett memory T, uint startCharge) private returns (ChargingScheme memory) {
         // TODO : Implement
 
-        CS memory cs = contractInstance.getCS(CSaddress);
+        // Get the target charging
+        uint targetCharge = T.ev.maxCapacity - startCharge;
+
+        // Get the charge time
+        uint chargeTime = contractInstance.calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
         ChargingScheme memory scheme;
 
         scheme.id = getNextSchemeId();
         scheme.smartCharging = true;
-        scheme.region = cs.region;
-        scheme.startTime = block.timestamp + 1 weeks;
+        scheme.region = T.cs.region;
+        scheme.startCharge = startCharge;
+        scheme.targetCharge = targetCharge;
+        scheme.chargeTime = chargeTime;
+
+
+        // The start time for smart charging
+        uint startTime = contractInstance.getNextRateSlot(block.timestamp + 2 minutes);
+
+        // The max time left for charging
+        uint maxTime = possibleChargingTime(T, startTime);
+
+        // Latset time smart charging can start to accomidate entire charge period (this does not account for preferences)
+        uint latestStartTime = startTime+maxTime-chargeTime;
+
+        // Get the first possible start time
+
+        scheme.startTime = startTime;
+        scheme.maxTime = maxTime;
+        scheme = generateSchemeSlots(scheme, T);
+
+        while ( startTime < latestStartTime ) {
+            
+            // The start time for smart charging
+            startTime += RATE_SLOT_PERIOD;
+
+            // Get new suggested charging scheme
+            scheme.startTime = startTime;
+            scheme.maxTime = maxTime;
+            ChargingScheme memory suggestion = generateSchemeSlots(scheme, T);
+
+            // If charging price is lower, and if active time is better or equal than previous active time, choose suggested time
+            if ( suggestion.priceInWei < scheme.priceInWei && suggestion.activeTime >= scheme.activeTime ) {
+                scheme = suggestion;
+            }
+
+        }
 
         return scheme;
 
@@ -273,6 +301,7 @@ contract Charging is Structure, ICharging {
                 timeInSlot = timeInSlot > chargeTimeLeft
                                             ? chargeTimeLeft 
                                             : timeInSlot; 
+                scheme.activeTime += timeInSlot;
             }
             else {
                 currentRate = 0;
@@ -352,6 +381,23 @@ contract Charging is Structure, ICharging {
 
         scheme.finalPrice = price;
         return contractInstance.priceToWei(price);
+    }
+
+    function possibleChargingTime(Triplett memory T, uint startTime) private view returns (uint) {
+        uint maxTime = contractInstance.getDeal(T.ev._address, T.cpo._address).endDate - startTime;
+        if ( contractInstance.getRate(T.cpo._address, T.cs.region).changeDate == 0 ) {
+            uint temp = contractInstance.getNextRateChangeAtTime(startTime) - startTime;
+            if ( temp < maxTime ) {
+                maxTime = temp;
+            }
+        }
+        else {
+            uint temp = contractInstance.getNextRateChangeAtTime(contractInstance.getRate(T.cpo._address, T.cs.region).changeDate) - startTime;
+            if ( maxTime < temp ) {
+                temp = maxTime;
+            }
+        }
+        return maxTime;
     }
 
 }

@@ -266,9 +266,9 @@ contract Contract is Structure, IContract {
         emit ChargingStopped(EVaddress, CSaddress, scheme, priceInWei);
     }
 
-    function scheduleSmartCharging(address EVaddress, address CSaddress) public {
+    function scheduleSmartCharging(address EVaddress, address CSaddress, uint startChrage) public {
         // Get smart charging spot
-        ChargingScheme memory scheme = chargingInstance.scheduleSmartCharging(EVaddress, CSaddress);
+        ChargingScheme memory scheme = chargingInstance.scheduleSmartCharging(EVaddress, CSaddress, startChrage);
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
         // Emit event regarding 
