@@ -207,7 +207,7 @@ contract Charging is Structure, ICharging {
                                     ? currentTime+maxTime-chargeTime
                                     : currentTime+chargeWindow-chargeTime;
 
-        // Max time must be influenced by latestStartTime or chargeWindow
+        // TODO : Max time must be influenced by latestStartTime or chargeWindow
 
         ChargingScheme memory scheme;
         scheme.id = getNextSchemeId();
