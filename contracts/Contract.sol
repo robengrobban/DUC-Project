@@ -295,6 +295,9 @@ contract Contract is Structure, IContract {
         return chargingInstance.getChargingScheme(EVaddress, CSaddress, startTime, startCharge, targetCharge);
     }
 
+
+
+    
     function getNextRateChangeAtTime(uint time) public pure returns (uint) {
         uint secondsUntilRateChange = RATE_CHANGE_IN_SECONDS - (time % RATE_CHANGE_IN_SECONDS);
         return time + secondsUntilRateChange;

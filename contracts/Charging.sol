@@ -192,22 +192,10 @@ contract Charging is Structure, ICharging {
         // Latset time smart charging can start to accomidate entire charge period (this does not account for preferences)
         uint latestStartTime = currentTime+maxTime-chargeTime;
 
-        // Get the first possible start time
         ChargingScheme memory scheme;
-        scheme.id = 0;//getNextSchemeId();
-        scheme.smartCharging = true;
-        scheme.region = T.cs.region;
-        scheme.startCharge = startCharge;
-        scheme.targetCharge = targetCharge;
-        scheme.chargeTime = chargeTime;
-
-        scheme.startTime = currentTime;
-        scheme.maxTime = maxTime;
-        scheme.finishTime = latestStartTime;
-        scheme = generateSchemeSlots(scheme, T);
-
         uint index = 0;
         while ( true ) {
+            scheme.durations[index] = currentTime;
             index++;
             // The start time for smart charging
             currentTime += RATE_SLOT_PERIOD;
@@ -216,25 +204,7 @@ contract Charging is Structure, ICharging {
             }
             maxTime = possibleChargingTime(T, currentTime);
 
-            // Get new suggested charging scheme
-            ChargingScheme memory suggestion;
-            suggestion.id = index * 100;
-            suggestion.smartCharging = true;
-            suggestion.region = T.cs.region;
-            suggestion.startCharge = startCharge;
-            suggestion.targetCharge = targetCharge;
-            suggestion.chargeTime = chargeTime;
-
-            suggestion.startTime = currentTime;
-            suggestion.maxTime = maxTime;
-            suggestion.finishTime = latestStartTime;
-            // TODO : Skapa en mycket mer lite version av GenerateSchemeSlots, kanske en som bara tar fram pris. Så efter man har priset, kan man generera slotet
-            suggestion = generateSchemeSlots(suggestion, T);
-
-            // If charging price is lower, and if active time is better or equal than previous active time, choose suggested time
-            if ( true /*suggestion.priceInWei < scheme.priceInWei && suggestion.activeTime >= scheme.activeTime*/ ) {
-                scheme = suggestion;
-            }
+            scheme.id = index;
 
         }
 
