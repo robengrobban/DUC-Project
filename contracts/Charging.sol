@@ -171,7 +171,7 @@ contract Charging is Structure, ICharging {
         require(contractInstance.isRegionAvailable(T.cs.cpo, T.cs.region), "804");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
         require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
-        require(endDate != 0 && endDate > block.timestamp, "711");
+        require(endDate != 0 && endDate > getNextRateSlot(block.timestamp + 30 seconds), "711");
 
         // Transfer to new rates
         contractInstance.transferToNewRates(T.cs.cpo, T.cs.region);
@@ -229,6 +229,7 @@ contract Charging is Structure, ICharging {
             if ( currentUnixTime > latestStartUnixTime ) {
                 break;
             }
+            require(latestStartUnixTime - currentUnixTime + chargeTime >= 0, "700?");
             maxTime = latestStartUnixTime - currentUnixTime + chargeTime;
 
             ChargingScheme memory suggestion;
