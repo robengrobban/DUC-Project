@@ -110,7 +110,7 @@ class EV extends Entity {
             this.account.address,
             CSaddress,
             this.wattHoursToWattSeconds(this.currentCharge),
-            this.getTime() + 60 * 30
+            this.getTime() + 60 * 15
         ).send();
     }
 

@@ -193,28 +193,31 @@ contract Charging is Structure, ICharging {
         uint chargeTime = calculateChargeTimeInSeconds((T.ev.maxCapacity - temp.startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
         // The start time for smart charging
-        uint currentTime = getNextRateSlot(block.timestamp);
+        uint currentUnixTime = getNextRateSlot(block.timestamp + 30 seconds);
 
         // Calculate charge window based on preferences
-        uint chargeWindow = temp.endDate - currentTime;
+        uint chargeWindow = temp.endDate - currentUnixTime;
         require(chargeWindow > 0, "711");
 
         // The max time left for charging according to deal and rate
-        uint maxTime = possibleChargingTime(deal, rate, currentTime);
+        uint maxTime = possibleChargingTime(deal, rate, currentUnixTime);
 
         // Latset time smart charging can start to accomidate entire charge period (this does not account for preferences)
-        uint latestStartTime = currentTime+maxTime-chargeTime < currentTime+chargeWindow-chargeTime
-                                    ? currentTime+maxTime-chargeTime
-                                    : currentTime+chargeWindow-chargeTime;
+        uint latestStartUnixTime = currentUnixTime+maxTime-chargeTime < currentUnixTime+chargeWindow-chargeTime
+                                    ? currentUnixTime+maxTime-chargeTime
+                                    : currentUnixTime+chargeWindow-chargeTime;
 
-        // TODO : Max time must be influenced by latestStartTime or chargeWindow
+        require(latestStartUnixTime - currentUnixTime + chargeTime >= 0, "711");
+
+        // Adjust max time, so that it bounds latest start time + the required charging time
+        maxTime = latestStartUnixTime - currentUnixTime + chargeTime;
 
         ChargingScheme memory scheme;
         scheme.id = getNextSchemeId();
         scheme.startCharge = temp.startCharge;
         scheme.targetCharge = T.ev.maxCapacity;
         scheme.chargeTime = chargeTime;
-        scheme.startTime = currentTime;
+        scheme.startTime = currentUnixTime;
         scheme.maxTime = maxTime;
         scheme.region = T.cs.region;
         scheme.smartCharging = true;
@@ -222,18 +225,18 @@ contract Charging is Structure, ICharging {
 
         while ( true ) {
             // The start time for smart charging
-            currentTime += RATE_SLOT_PERIOD;
-            if ( currentTime > latestStartTime ) {
+            currentUnixTime += RATE_SLOT_PERIOD;
+            if ( currentUnixTime > latestStartUnixTime ) {
                 break;
             }
-            maxTime = possibleChargingTime(deal, rate, currentTime);
+            maxTime = latestStartUnixTime - currentUnixTime + chargeTime;
 
             ChargingScheme memory suggestion;
             suggestion.id = scheme.id+1;
             suggestion.startCharge = temp.startCharge;
             suggestion.targetCharge = T.ev.maxCapacity;
             suggestion.chargeTime = chargeTime;
-            suggestion.startTime = currentTime;
+            suggestion.startTime = currentUnixTime;
             suggestion.maxTime = maxTime;
             suggestion.region = T.cs.region;
             suggestion.smartCharging = true;
@@ -241,7 +244,7 @@ contract Charging is Structure, ICharging {
             suggestion = generateSchemeSlots(suggestion, deal, rate, T);
 
             // Should be "suggestion.priceInWei >= scheme.priceInWei" in prod
-            if ( suggestion.priceInWei >= scheme.priceInWei && suggestion.activeTime >= scheme.activeTime && suggestion.idleTime <= scheme.idleTime ) {
+            if ( (suggestion.priceInWei >= scheme.priceInWei && suggestion.activeTime >= scheme.activeTime) || (suggestion.activeTime > scheme.activeTime) ) {
                 scheme = suggestion;
             }
             
@@ -303,28 +306,34 @@ contract Charging is Structure, ICharging {
         while ( chargeTimeLeft > 0 && elapsedTime < scheme.maxTime ) {
             
             (bool useSlot, uint timeInSlot, uint currentRate) = loop(startTime, elapsedTime, deal, rate);
-            
+
+            // If time in slot is bigger than max time allowed, cap to max time
+            timeInSlot = elapsedTime+timeInSlot > scheme.maxTime
+                            ? scheme.maxTime - elapsedTime
+                            : timeInSlot;
+
+            uint slotCost;
+
             // Check if slot is used (Max rate limit)
             if ( useSlot ) {
                 // If time in slot is bigger than charge left (needed), only charge time left is needed of slot time
                 timeInSlot = timeInSlot > chargeTimeLeft
-                                            ? chargeTimeLeft 
-                                            : timeInSlot; 
+                            ? chargeTimeLeft 
+                            : timeInSlot; 
+
+                slotCost = timeInSlot * currentRate * T.cs.powerDischarge;
+
+                chargeTimeLeft -= timeInSlot;
+                elapsedTime += timeInSlot; 
                 scheme.activeTime += timeInSlot;
+                scheme.outputCharge += T.cs.powerDischarge * timeInSlot;
             }
             else {
-                currentRate = 0;
-                chargeTimeLeft += timeInSlot; // To offset the -= chargingTimeInSlot bellow, as we are not charging in this slot
+                elapsedTime += timeInSlot; 
                 scheme.idleTime += timeInSlot;
             }
 
-            uint slotCost = timeInSlot * currentRate * T.cs.powerDischarge;
-
             totalCost += slotCost;
-            chargeTimeLeft -= timeInSlot;
-            elapsedTime += timeInSlot; 
-            
-            scheme.outputCharge += T.cs.powerDischarge * timeInSlot * (useSlot ? 1 : 0);
             scheme.durations[index] = timeInSlot;
             scheme.prices[index] = slotCost;
 
