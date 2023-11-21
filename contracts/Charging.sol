@@ -232,7 +232,7 @@ contract Charging is Structure, ICharging {
             maxTime = latestStartUnixTime - currentUnixTime + chargeTime;
 
             ChargingScheme memory suggestion;
-            suggestion.id = scheme.id+1;
+            suggestion.id = scheme.id;
             suggestion.startCharge = temp.startCharge;
             suggestion.targetCharge = T.ev.maxCapacity;
             suggestion.chargeTime = chargeTime;
@@ -243,8 +243,7 @@ contract Charging is Structure, ICharging {
 
             suggestion = generateSchemeSlots(suggestion, deal, rate, T);
 
-            // Should be "suggestion.priceInWei >= scheme.priceInWei" in prod
-            if ( (suggestion.priceInWei >= scheme.priceInWei && suggestion.activeTime >= scheme.activeTime) || (suggestion.activeTime > scheme.activeTime) ) {
+            if ( (suggestion.priceInWei > scheme.priceInWei && suggestion.activeTime >= scheme.activeTime) || (suggestion.activeTime > scheme.activeTime) ) {
                 scheme = suggestion;
             }
             
