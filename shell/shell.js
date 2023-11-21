@@ -124,7 +124,7 @@ if (false) {
     station.listen('ChargingRequested').on('data', async log => {
         console.log("CS charging request ", log.returnValues);
         // Start charging
-        if (true) {
+        if (false) {
             let schemeId = log.returnValues.scheme.id;
             let EVaddress = log.returnValues.ev;
             console.log("CS is responding to charging request ", schemeId);

@@ -171,7 +171,7 @@ contract Charging is Structure, ICharging {
         require(contractInstance.isRegionAvailable(T.cs.cpo, T.cs.region), "804");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
         require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
-        require(endDate != 0 && endDate > getNextRateSlot(block.timestamp + 30 seconds), "711");
+        require(endDate != 0 && endDate > block.timestamp, "711");
 
         // Transfer to new rates
         contractInstance.transferToNewRates(T.cs.cpo, T.cs.region);
@@ -196,8 +196,8 @@ contract Charging is Structure, ICharging {
         uint currentUnixTime = getNextRateSlot(block.timestamp + 30 seconds);
 
         // Calculate charge window based on preferences
+        require(temp.endDate >= currentUnixTime, "711");
         uint chargeWindow = temp.endDate - currentUnixTime;
-        require(chargeWindow > 0, "711");
 
         // The max time left for charging according to deal and rate
         uint maxTime = possibleChargingTime(deal, rate, currentUnixTime);
@@ -207,10 +207,8 @@ contract Charging is Structure, ICharging {
                                     ? currentUnixTime+maxTime-chargeTime
                                     : currentUnixTime+chargeWindow-chargeTime;
 
-        require(latestStartUnixTime - currentUnixTime + chargeTime >= 0, "711");
-
         // Adjust max time, so that it bounds latest start time + the required charging time
-        maxTime = latestStartUnixTime - currentUnixTime + chargeTime;
+        maxTime = currentUnixTime + chargeTime - latestStartUnixTime;
 
         ChargingScheme memory scheme;
         scheme.id = getNextSchemeId();
@@ -229,8 +227,7 @@ contract Charging is Structure, ICharging {
             if ( currentUnixTime > latestStartUnixTime ) {
                 break;
             }
-            require(latestStartUnixTime - currentUnixTime + chargeTime >= 0, "700?");
-            maxTime = latestStartUnixTime - currentUnixTime + chargeTime;
+            maxTime = currentUnixTime + chargeTime - latestStartUnixTime;
 
             ChargingScheme memory suggestion;
             suggestion.id = scheme.id;
