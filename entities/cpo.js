@@ -65,7 +65,7 @@ class CPO extends Entity {
             }
             else {
                 rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.002)*this.ratePrecision)+0.5 ));
-            }>
+            }
             //rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.0005)*this.ratePrecision)+0.5 ));
         }
         return rates;
