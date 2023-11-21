@@ -266,9 +266,9 @@ contract Contract is Structure, IContract {
         emit ChargingStopped(EVaddress, CSaddress, scheme, priceInWei);
     }
     
-    function scheduleSmartCharging(address EVaddress, address CSaddress, uint startCharge) public {
+    function scheduleSmartCharging(address EVaddress, address CSaddress, uint startCharge, uint endDate) public {
         // Get smart charging spot
-        ChargingScheme memory scheme = chargingInstance.scheduleSmartCharging(EVaddress, CSaddress, startCharge);
+        ChargingScheme memory scheme = chargingInstance.scheduleSmartCharging(EVaddress, CSaddress, startCharge, endDate);
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
         // Emit event regarding smart charging
@@ -295,24 +295,29 @@ contract Contract is Structure, IContract {
         return chargingInstance.getChargingScheme(EVaddress, CSaddress, startTime, startCharge, targetCharge);
     }
 
+    /*
+    * PRIVATE FUNCTIONS
+    */
 
+    /*
+    * LIBRARY FUNCTIONS
+    */
 
-    
-    function getNextRateChangeAtTime(uint time) public pure returns (uint) {
+    function getNextRateChangeAtTime(uint time) private pure returns (uint) {
         uint secondsUntilRateChange = RATE_CHANGE_IN_SECONDS - (time % RATE_CHANGE_IN_SECONDS);
         return time + secondsUntilRateChange;
     }
 
-    function getNextRateSlot(uint currentTime) public pure returns (uint) {
+    function getNextRateSlot(uint currentTime) private pure returns (uint) {
         uint secondsUntilRateChange = RATE_SLOT_PERIOD - (currentTime % RATE_SLOT_PERIOD);
         return currentTime + secondsUntilRateChange;
     }
 
-    function getRateSlot(uint time) public pure returns (uint) {
+    function getRateSlot(uint time) private pure returns (uint) {
         return (time / RATE_SLOT_PERIOD) % RATE_SLOTS;
     }
 
-    function paddPrecisionNumber(PrecisionNumber memory a, PrecisionNumber memory b) public pure returns (PrecisionNumber memory, PrecisionNumber memory) {
+    function paddPrecisionNumber(PrecisionNumber memory a, PrecisionNumber memory b) private pure returns (PrecisionNumber memory, PrecisionNumber memory) {
         PrecisionNumber memory first = PrecisionNumber({value: a.value, precision: a.precision});
         PrecisionNumber memory second = PrecisionNumber({value: b.value, precision: b.precision});
         
@@ -329,21 +334,16 @@ contract Contract is Structure, IContract {
         return (first, second);
     }
 
-    function calculateChargeTimeInSeconds(uint charge, uint discharge, uint efficiency) public pure returns (uint) {
+    function calculateChargeTimeInSeconds(uint charge, uint discharge, uint efficiency) private pure returns (uint) {
         uint secondsPrecision = PRECISION * charge * 100 / (discharge * efficiency);
         // Derived from: charge / (discharge * efficienct/100)
         uint secondsRoundUp = (secondsPrecision+(PRECISION/2))/PRECISION;
         return secondsRoundUp;
     }
 
-    function priceToWei(PrecisionNumber memory price) public pure returns (uint) {
+    function priceToWei(PrecisionNumber memory price) private pure returns (uint) {
         return ((price.value * WEI_FACTOR) + (price.precision/2)) / price.precision;
     }
-
-    /*
-    * PRIVATE FUNCTIONS
-    */
-
 
 
     /*

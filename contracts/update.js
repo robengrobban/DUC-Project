@@ -10,7 +10,7 @@ web3.defaultAccount = account;
 
 async function read(name) {
     const address = await fs.readFile("contracts/address/"+name+".address", "utf-8");
-    console.log("Reading...", name, address);
+    console.log("Reading...", name, "at", address);
     return address;
 }
 

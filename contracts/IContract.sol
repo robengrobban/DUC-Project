@@ -33,11 +33,4 @@ interface IContract is Structure {
 
     function getDeposit(address) external view returns (uint);
 
-    function getNextRateChangeAtTime(uint time) external pure returns (uint);
-    function getNextRateSlot(uint currentTime) external pure returns (uint);
-    function getRateSlot(uint time) external pure returns (uint);
-    function paddPrecisionNumber(PrecisionNumber memory a, PrecisionNumber memory b) external pure returns (PrecisionNumber memory, PrecisionNumber memory);
-    function calculateChargeTimeInSeconds(uint charge, uint discharge, uint efficiency) external pure returns (uint);
-    function priceToWei(PrecisionNumber memory price) external pure returns (uint);
-
 }

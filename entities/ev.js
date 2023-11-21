@@ -109,7 +109,8 @@ class EV extends Entity {
         return await this.contract.methods.scheduleSmartCharging(
             this.account.address,
             CSaddress,
-            this.wattHoursToWattSeconds(this.currentCharge)
+            this.wattHoursToWattSeconds(this.currentCharge),
+            this.getTime() + 60 * 30
         ).send();
     }
 

@@ -47,6 +47,7 @@
  - 708 : Current charge level must be less than targeted charge level
  - 709 : Target charge level cannot be above cars charge level
  - 710 : Current ChargingScheme is not a smart charging request
+ - 711 : Charging end date must be in the future and not before starting date
 
 800 (Rates)
  - 801 : Rates array must be in correct intervall
