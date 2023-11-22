@@ -53,7 +53,8 @@ if (false) {
 
     console.log("Registring new rates...");
     let rates = operator.generateRates();
-    await operator.registerNewRates(rates);
+    let roaming = operator.generateRoaming();
+    await operator.registerNewRates(rates, roaming);
 
     // Propose deal
     operator.listen('DealProposed').on('data', async log => {
@@ -106,7 +107,8 @@ if (false) {
 
     console.log("Registring new rates...");
     let rates = operator.generateRates();
-    await operator.registerNewRates(rates);
+    let roaming = operator.generateRoaming();
+    await operator.registerNewRates(rates, roaming);
 }
 if (false) {
     // Calculate charging price
@@ -124,7 +126,7 @@ if (false) {
     station.listen('ChargingRequested').on('data', async log => {
         console.log("CS charging request ", log.returnValues);
         // Start charging
-        if (false) {
+        if (true) {
             let schemeId = log.returnValues.scheme.id;
             let EVaddress = log.returnValues.ev;
             console.log("CS is responding to charging request ", schemeId);

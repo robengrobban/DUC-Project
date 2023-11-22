@@ -204,8 +204,8 @@ contract Contract is Structure, IContract {
         }
     }
 
-    function setRates(address CPOaddress, bytes3 region, uint[RATE_SLOTS] calldata newRates, uint ratePrecision) public {
-        Rate memory rate = rateInstance.setRates(CPOaddress, region, newRates, ratePrecision);
+    function setRates(address CPOaddress, bytes3 region, uint[RATE_SLOTS] calldata newRates, uint newRoaming, uint ratePrecision) public {
+        Rate memory rate = rateInstance.setRates(CPOaddress, region, newRates, newRoaming, ratePrecision);
         rates[CPOaddress][region] = rate;
         emit NewRates(CPOaddress, region, rate);
     }

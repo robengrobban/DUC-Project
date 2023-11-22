@@ -30,12 +30,13 @@ contract Rate is Structure, IRate {
     * PUBLIC FUNCTIONS
     */
 
-    function setRates(address CPOaddress, bytes3 region, uint[RATE_SLOTS] calldata newRates, uint ratePrecision) public view returns (Rate memory) {
+    function setRates(address CPOaddress, bytes3 region, uint[RATE_SLOTS] calldata newRates, uint newRoaming, uint ratePrecision) public view returns (Rate memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == CPOaddress, "202");
         require(contractInstance.isCPO(CPOaddress), "203");
         require(newRates.length == RATE_SLOTS, "801");
-        require(ratePrecision >= PRECISION, "802");
+        require(newRoaming > 0, "805");
+        require(ratePrecision == PRECISION, "802");
 
         Rate memory rate = contractInstance.getRate(CPOaddress, region);
 
@@ -47,6 +48,7 @@ contract Rate is Structure, IRate {
             rate.region = region;
             rate.startDate = block.timestamp;
             rate.current = newRates;
+            rate.currentRoaming = newRoaming;
             rate.precision = ratePrecision;
         }
         // There are existing rates.
@@ -55,6 +57,7 @@ contract Rate is Structure, IRate {
                 revert("803");
             }
             rate.next = newRates;
+            rate.nextRoaming = newRoaming;
             rate.changeDate = getNextRateChange();
         }
 
@@ -63,21 +66,34 @@ contract Rate is Structure, IRate {
 
     function transferToNewRates(Rate memory rate) public view returns (Rate memory) {
         if ( rate.changeDate != 0 && block.timestamp >= rate.changeDate ) {
-            rate.historical = rate.current;
-            rate.historicalDate = rate.startDate;
-
-            rate.current = rate.next;
-            rate.startDate = rate.changeDate;
-
-            uint[RATE_SLOTS] memory empty;
-            rate.next = empty;
-            rate.changeDate = 0;
+            return transitionRate(rate);
         }
         return rate;
     }
 
     function getNextRateChange() public view returns (uint) {
         return getNextRateChangeAtTime(block.timestamp);
+    }
+
+    /*
+    * PRIVATE FUNCTIONS
+    */
+
+    function transitionRate(Rate memory rate) private pure returns (Rate memory) {
+        rate.historical = rate.current;
+        rate.historicalRoaming = rate.currentRoaming;
+        rate.historicalDate = rate.startDate;
+
+        rate.current = rate.next;
+        rate.currentRoaming = rate.nextRoaming;
+        rate.startDate = rate.changeDate;
+
+        uint[RATE_SLOTS] memory empty;
+        rate.next = empty;
+        rate.nextRoaming = 0;
+        rate.changeDate = 0;
+
+        return rate;
     }
 
     /*

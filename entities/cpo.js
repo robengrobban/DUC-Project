@@ -47,11 +47,12 @@ class CPO extends Entity {
         ).send();
     }
 
-    async registerNewRates(rates) {
+    async registerNewRates(rates, roaming) {
         return await this.contract.methods.setRates(
             this.account.address, 
             this.web3.utils.fromAscii("SE1"),
-            rates, 
+            rates,
+            roaming, 
             this.ratePrecision
         ).send();
     }
@@ -69,6 +70,10 @@ class CPO extends Entity {
             //rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.0005)*this.ratePrecision)+0.5 ));
         }
         return rates;
+    }
+
+    generateRoaming() {
+        return this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.0001)*this.ratePrecision)+0.5 ));
     }
 
     pricePerWattHoursToWattSeconds(price) {

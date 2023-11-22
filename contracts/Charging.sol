@@ -141,6 +141,10 @@ contract Charging is Structure, ICharging {
         scheme.startCharge = startCharge;
         scheme.targetCharge = targetCharge;
         scheme.startTime = startTime;
+        scheme.CPOaddress = T.cpo._address;
+        if ( true /*Roaming*/ ) {
+            scheme.CPOroaming = T.cs.cpo;
+        }
 
         Deal memory deal = contractInstance.getDeal(T.ev._address, T.cpo._address);
         Rate memory rate = contractInstance.getRate(T.cpo._address, T.cs.region);
@@ -193,29 +197,32 @@ contract Charging is Structure, ICharging {
         uint chargeTime = calculateChargeTimeInSeconds((T.ev.maxCapacity - temp.startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
         // The start time for smart charging
-        uint currentUnixTime = getNextRateSlot(block.timestamp + 30 seconds);
+        uint currentDate = getNextRateSlot(block.timestamp + 30 seconds);
 
         // Calculate charge window based on preferences
-        require(temp.endDate >= currentUnixTime, "711");
-        uint chargeWindow = temp.endDate - currentUnixTime;
+        require(temp.endDate >= currentDate, "711");
+        uint chargeWindow = temp.endDate - currentDate;
 
         // The max time left for charging according to deal and rate
-        uint maxTime = possibleChargingTime(deal, rate, currentUnixTime);
+        uint maxTime = possibleChargingTime(deal, rate, currentDate);
+
+        // Charge window needs to be within bounds of maximum possible charging time
+        chargeWindow = chargeWindow < maxTime
+                        ? chargeWindow
+                        : maxTime;
 
         // Latset time smart charging can start to accomidate entire charge period (this does not account for preferences)
-        uint latestStartUnixTime = currentUnixTime+maxTime-chargeTime < currentUnixTime+chargeWindow-chargeTime
-                                    ? currentUnixTime+maxTime-chargeTime
-                                    : currentUnixTime+chargeWindow-chargeTime;
+        uint latestStartDate = currentDate + chargeWindow - chargeTime;
 
-        // Adjust max time, so that it bounds latest start time + the required charging time
-        maxTime = currentUnixTime + chargeTime - latestStartUnixTime;
+        // Adjust max time, so that it does not go above latest start date
+        maxTime = chargeWindow;
 
         ChargingScheme memory scheme;
         scheme.id = getNextSchemeId();
         scheme.startCharge = temp.startCharge;
         scheme.targetCharge = T.ev.maxCapacity;
         scheme.chargeTime = chargeTime;
-        scheme.startTime = currentUnixTime;
+        scheme.startTime = currentDate;
         scheme.maxTime = maxTime;
         scheme.region = T.cs.region;
         scheme.smartCharging = true;
@@ -223,18 +230,19 @@ contract Charging is Structure, ICharging {
 
         while ( true ) {
             // The start time for smart charging
-            currentUnixTime += RATE_SLOT_PERIOD;
-            if ( currentUnixTime > latestStartUnixTime ) {
+            currentDate += RATE_SLOT_PERIOD;
+            if ( currentDate > latestStartDate ) {
                 break;
             }
-            maxTime = currentUnixTime + chargeTime - latestStartUnixTime;
+            chargeWindow -= RATE_SLOT_PERIOD;
+            maxTime = chargeWindow;
 
             ChargingScheme memory suggestion;
             suggestion.id = scheme.id;
             suggestion.startCharge = temp.startCharge;
             suggestion.targetCharge = T.ev.maxCapacity;
             suggestion.chargeTime = chargeTime;
-            suggestion.startTime = currentUnixTime;
+            suggestion.startTime = currentDate;
             suggestion.maxTime = maxTime;
             suggestion.region = T.cs.region;
             suggestion.smartCharging = true;
@@ -298,7 +306,8 @@ contract Charging is Structure, ICharging {
         uint chargeTimeLeft = scheme.chargeTime;
         uint startTime = scheme.startTime;
         uint elapsedTime;
-        uint totalCost;
+        scheme.price.precision = PRECISION;
+        scheme.roamingPrice.precision = PRECISION;
         uint index = 0;
         while ( chargeTimeLeft > 0 && elapsedTime < scheme.maxTime ) {
             
@@ -309,8 +318,6 @@ contract Charging is Structure, ICharging {
                             ? scheme.maxTime - elapsedTime
                             : timeInSlot;
 
-            uint slotCost;
-
             // Check if slot is used (Max rate limit)
             if ( useSlot ) {
                 // If time in slot is bigger than charge left (needed), only charge time left is needed of slot time
@@ -318,32 +325,31 @@ contract Charging is Structure, ICharging {
                             ? chargeTimeLeft 
                             : timeInSlot; 
 
-                slotCost = timeInSlot * currentRate * T.cs.powerDischarge;
-
                 chargeTimeLeft -= timeInSlot;
                 elapsedTime += timeInSlot; 
+
                 scheme.activeTime += timeInSlot;
                 scheme.outputCharge += T.cs.powerDischarge * timeInSlot;
+                scheme.prices[index] = timeInSlot * currentRate * T.cs.powerDischarge;
+                scheme.roaming[index] = T.cs.powerDischarge * timeInSlot * rate.currentRoaming; // TODO : Change to correct roaming
+
+                scheme.price.value += scheme.prices[index];
+                scheme.roamingPrice.value += scheme.roaming[index];
             }
             else {
                 elapsedTime += timeInSlot; 
                 scheme.idleTime += timeInSlot;
             }
 
-            totalCost += slotCost;
             scheme.durations[index] = timeInSlot;
-            scheme.prices[index] = slotCost;
-
+            
             index++;
         }
 
-        PrecisionNumber memory precisionTotalCost;
-        precisionTotalCost.precision = rate.precision;
-        precisionTotalCost.value = totalCost;
-
+        scheme.priceInWei = priceToWei(scheme.price);
+        scheme.roamingPriceInWei = priceToWei(scheme.roamingPrice);
+        
         scheme.endTime = startTime + elapsedTime;
-        scheme.price = precisionTotalCost;
-        scheme.priceInWei = priceToWei(precisionTotalCost);
         scheme.slotsUsed = index;
 
         return scheme;
@@ -357,7 +363,7 @@ contract Charging is Structure, ICharging {
         
         uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate slot starts.
 
-        bool useSlot = shouldUseSlot(currentRate, deal, rate);
+        bool useSlot = currentRate <= deal.maxRate.value;
 
         uint timeInSlot = nextRateSlot - currentTime;
 
@@ -378,7 +384,8 @@ contract Charging is Structure, ICharging {
         return slotRate.value <= maxRate.value;
     }
 
-    function getChargingSchemeFinalPrice(ChargingScheme memory scheme, uint finishTime) private pure returns (uint) {       
+    function getChargingSchemeFinalPrice(ChargingScheme memory scheme, uint finishTime) private pure returns (uint) {      
+        // TODO : Even with this if statement, scheme.___ should still be assigned the correct final price 
         if ( scheme.endTime == finishTime ) {
             return scheme.priceInWei;
         }
@@ -387,8 +394,8 @@ contract Charging is Structure, ICharging {
         }
 
         uint elapsedTime;
-        PrecisionNumber memory price;
-        price.precision = scheme.price.precision;
+        scheme.finalPrice.precision = PRECISION;
+        scheme.finalRoamingPrice.precision = PRECISION;
 
         for ( uint i = 0; i < scheme.slotsUsed; i++ ) {
            
@@ -403,14 +410,13 @@ contract Charging is Structure, ICharging {
                             ? timeInSlot - (currentTime + timeInSlot - finishTime)
                             : timeInSlot;
 
-            uint slotPrice = scheme.prices[i] * timeInSlot / scheme.durations[i];
-            price.value += slotPrice;
+            scheme.finalPrice.value += (scheme.prices[i] * timeInSlot) / scheme.durations[i];
+            scheme.finalRoamingPrice.value += (scheme.roaming[i] * timeInSlot) / scheme.durations[i];
             elapsedTime += timeInSlot;
 
         }
 
-        scheme.finalPrice = price;
-        return priceToWei(price);
+        return priceToWei(scheme.finalPrice);
     }
 
     function possibleChargingTime(Deal memory deal, Rate memory rate, uint startTime) private pure returns (uint) {

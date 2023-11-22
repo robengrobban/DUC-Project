@@ -76,25 +76,35 @@ interface Structure {
     struct Rate {
         bytes3 region;
 
-        uint[RATE_SLOTS] current; // Rate in Watt seconds
+        uint[RATE_SLOTS] current; // Rate per Watt seconds
+        uint currentRoaming; // Roaming rate per Watt seconds
         uint startDate; // The date when the rates was applied
         uint precision; // The selected precision for Rates. (INT calculation)
 
         uint[RATE_SLOTS] next; // The next scheduled rates
+        uint nextRoaming; // The next roaming rates
         uint changeDate; // The date when the new rates are expected to change
 
         uint[RATE_SLOTS] historical; // What the last rate was
+        uint historicalRoaming; // What the roaming last was
         uint historicalDate; // When the rates in historical started
     }
 
     struct ChargingScheme {
         uint id;
+
+        address CPOaddress; // Address of which CPO is used for rates
+        address CPOroaming; // Address of which CPO is used for roaming, only present if is roaming, i.e. CS CPO
+
         bool EVaccepted;
         bool CSaccepted;
+
         bool finished;
-        bool smartCharging;
+        bool smartCharging; // True if the scheme originated from a smart charging request
+
         uint targetCharge; // Watt seconds of target charge
         uint outputCharge; // Watt seconds of output charge, if full scheme is used
+
         uint startCharge; // Watt seconds of start charge
         uint startTime; // Unix time for when charging starts
         uint chargeTime; // Seconds of time needed to charge EV
@@ -103,20 +113,37 @@ interface Structure {
         uint maxTime; // The maximum amount of time a scheme can run for in seconds (ends at deal end or when new (unkown) rates start)
         uint endTime; // Unix time for when charging should end
         uint finishTime; // Unix time for when charing actually end
+        
         bytes3 region;
+
         PrecisionNumber price;
         uint priceInWei;
+
+        PrecisionNumber roamingPrice;
+        uint roamingPriceInWei;
+
         PrecisionNumber finalPrice;
         uint finalPriceInWei;
+
+        PrecisionNumber finalRoamingPrice;
+        uint finalRoamingPriceInWei;
+
         uint slotsUsed;
         uint[RATE_SLOTS*2] durations;
         uint[RATE_SLOTS*2] prices;
+        uint[RATE_SLOTS*2] roaming;
     }
 
     struct Triplett {
         EV ev;
         CS cs;
         CPO cpo;
+    }
+
+    struct Chargelett {
+        Deal deal;
+        Rate rate;
+        Rate roaming;
     }
 
 }

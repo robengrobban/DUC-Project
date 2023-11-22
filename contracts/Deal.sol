@@ -52,7 +52,7 @@ contract Deal is Structure, IDeal {
 
         PrecisionNumber memory maxRate = PrecisionNumber({
             value: 500,
-            precision: 1000000000
+            precision: PRECISION
         });
         Deal memory proposedDeal = Deal({
             id: getNextDealId(),

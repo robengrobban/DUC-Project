@@ -51,9 +51,10 @@
 
 800 (Rates)
  - 801 : Rates array must be in correct intervall
- - 802 : Rate precision must be at least 1000000000
+ - 802 : Precision must be 1000000000
  - 803 : Rate precision cannot be altered in new rates
  - 804 : No rates exists for that region
+ - 805 : Roaming must be bigger than 0
 
 900 (Deposits)
  - 901 : Total deposit is incufficient
