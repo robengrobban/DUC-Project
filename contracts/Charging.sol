@@ -174,6 +174,7 @@ contract Charging is Structure, ICharging {
         return generateSchemeSlots(scheme, C, T);
     }
     
+    // TODO : Smart charging only if deal allows
     function scheduleSmartCharging(address EVaddress, address CSaddress, address CPOaddress, uint startCharge, uint endDate) public returns (ChargingScheme memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == EVaddress || tx.origin == CSaddress, "402/302");
@@ -235,6 +236,7 @@ contract Charging is Structure, ICharging {
 
         ChargingScheme memory scheme;
         scheme.id = getNextSchemeId();
+        scheme.CPOaddress = T.cpo._address;
         scheme.startCharge = startCharge;
         scheme.targetCharge = T.ev.maxCapacity;
         scheme.chargeTime = chargeTime;
@@ -256,6 +258,7 @@ contract Charging is Structure, ICharging {
 
             ChargingScheme memory suggestion;
             suggestion.id = scheme.id;
+            suggestion.CPOaddress = scheme.CPOaddress;
             suggestion.startCharge = startCharge;
             suggestion.targetCharge = T.ev.maxCapacity;
             suggestion.chargeTime = chargeTime;

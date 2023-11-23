@@ -62,20 +62,22 @@ class EV extends Entity {
         ).call();
     }
 
-    async getChargingScheme(CSaddress) {
+    async getChargingScheme(CSaddress, CPOaddress) {
         return await this.contract.methods.getChargingScheme(
             this.account.address, 
             CSaddress, 
+            CPOaddress,
             0,
             this.wattHoursToWattSeconds(this.currentCharge),
             this.wattHoursToWattSeconds(this.maxCapacity)
         ).call();
     }
 
-    async requestCharging(value, CSaddress, startTime, targetCharge = this.wattHoursToWattSeconds(this.maxCapacity)) {
+    async requestCharging(value, CSaddress, CPOaddress, startTime, targetCharge = this.wattHoursToWattSeconds(this.maxCapacity)) {
         return await this.contract.methods.requestCharging(
             this.account.address,
             CSaddress,
+            CPOaddress,
             startTime,
             this.wattHoursToWattSeconds(this.currentCharge),
             targetCharge
@@ -105,12 +107,13 @@ class EV extends Entity {
         ).send();
     }
 
-    async scheduleSmartCharging(CSaddress) {
+    async scheduleSmartCharging(CSaddress, CPOaddress) {
         return await this.contract.methods.scheduleSmartCharging(
             this.account.address,
             CSaddress,
+            CPOaddress,
             this.wattHoursToWattSeconds(this.currentCharge),
-            this.getTime() + 60 * 60 * 3
+            this.getTime() + 60 * 60
         ).send();
     }
 

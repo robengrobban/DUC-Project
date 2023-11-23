@@ -5,10 +5,12 @@ import { CPO } from '../entities/cpo.js';
 const car = new EV('0xd0a5e7b124eb5c1d327f7c19c988bb57979637043e52db48683da62900973b96');
 const station = new CS('0x59fe2715b3dae7ea659aa4d4466d1dbeda7f1d7835fbace6c0da14c303018d30');
 const operator = new CPO('0x7efa5e9cc6abc293f1f11072ea93c57c2ae5ecc4dc358ef77d9d2c6c9d9b6ab7');
+const operator2 = new CPO('0x59ee2d860463134cb23261befed94eec33516334781a2725ded2ff1265da51d4');
 
 await car.connectContract();
 await station.connectContract();
 await operator.connectContract();
+await operator2.connectContract();
 
 if (false) {
     console.log("DEBUG EV: ", await car.debugEV());
@@ -113,7 +115,7 @@ if (false) {
 if (false) {
     // Calculate charging price
     //console.log(await car.estimateChargingPrice(station.account.address));
-    console.log(await car.getChargingScheme(station.account.address));
+    console.log(await car.getChargingScheme(station.account.address, operator.account.address));
 }
 if (false) {
     // Listenings
@@ -136,7 +138,7 @@ if (false) {
 
     // Request charging
     console.log("EV requests charging...");
-    await car.requestCharging(500, station.account.address, car.getTime() + 30);
+    await car.requestCharging(500, station.account.address, operator.account.address, car.getTime() + 30);
 }
 if (false) {
     // Listenings
@@ -160,7 +162,7 @@ if (false) {
             console.log("EV accept smart charging schedule... ", log.returnValues.scheme.id);
             let schemeId = log.returnValues.scheme.id;
             let CSaddress = log.returnValues.cs;
-            await car.acceptSmartCharging(100, CSaddress, schemeId);
+            await car.acceptSmartCharging(500, CSaddress, schemeId);
         }
     });
 
@@ -181,5 +183,5 @@ if (false) {
         });
     }
     console.log("Scheduling smart charging...");
-    car.scheduleSmartCharging(station.account.address);
+    car.scheduleSmartCharging(station.account.address, operator.account.address);
 }
