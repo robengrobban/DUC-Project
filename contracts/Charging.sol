@@ -36,26 +36,34 @@ contract Charging is Structure, ICharging {
     * PUBLIC FUNCTIONS
     */
 
-    function requestCharging(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge, uint deposit) public returns (ChargingScheme memory) {
+    function requestCharging(address EVaddress, address CSaddress, address CPOaddress, uint startTime, uint startCharge, uint targetCharge, uint deposit) public returns (ChargingScheme memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == EVaddress, "402");
         require(contractInstance.isEV(EVaddress), "403");
         require(contractInstance.isCS(CSaddress), "303");
+        require(contractInstance.isCPO(CPOaddress), "203");
         require(startTime > block.timestamp, "701");
 
+        //Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress, CPOaddress);
         CS memory cs = contractInstance.getCS(CSaddress);
                 
-        require(contractInstance.isDealActive(EVaddress, cs.cpo), "503");
+        require(contractInstance.isDealActive(EVaddress, CPOaddress), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
-        require(contractInstance.isRegionAvailable(cs.cpo, cs.region), "804");
+        require(contractInstance.isRatesAvailable(CPOaddress, cs.region), "804");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
 
+        if ( CPOaddress != cs.cpo ) {
+            // Roaming applies
+            require(contractInstance.isRoamingAvailable(cs.cpo, cs.region), "712");
+            contractInstance.transferToNewRates(cs.cpo, cs.region); // Update roaming rates if necessary
+        }
+        contractInstance.transferToNewRates(CPOaddress, cs.region);
+
         // Calculate ChargingScheme
-        contractInstance.transferToNewRates(cs.cpo, cs.region);
-        ChargingScheme memory scheme = getChargingScheme(EVaddress, CSaddress, startTime, startCharge, targetCharge);
+        ChargingScheme memory scheme = getChargingScheme(EVaddress, CSaddress, CPOaddress, startTime, startCharge, targetCharge);
 
         uint moneyAvailable = deposit + contractInstance.getDeposit(EVaddress);
-        uint moneyRequired = scheme.priceInWei;
+        uint moneyRequired = scheme.priceInWei + scheme.roamingPriceInWei;
 
         require(moneyAvailable >= moneyRequired, "901");
         
@@ -72,13 +80,10 @@ contract Charging is Structure, ICharging {
         require(contractInstance.isCS(CSaddress), "303");
         require(contractInstance.isEV(EVaddress), "403");
         require(schemeId > 0, "703");
-
-        CS memory cs = contractInstance.getCS(CSaddress);
-
-        require(contractInstance.isDealActive(EVaddress, cs.cpo), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
         
         ChargingScheme memory scheme = contractInstance.getCharging(EVaddress, CSaddress);
+        require(contractInstance.isDealActive(EVaddress, scheme.CPOaddress), "503");
         require(scheme.id == schemeId, "704");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
 
@@ -112,27 +117,30 @@ contract Charging is Structure, ICharging {
         }
 
         // Calculate monetary transfer
-        uint priceInWei = getChargingSchemeFinalPrice(scheme, finishTime);
+        (uint priceInWei, uint roamingPriceInWei) = getChargingSchemeFinalPrice(scheme, finishTime);
 
         // Update scheme
         scheme.finished = true;
         scheme.finishTime = finishTime;
         scheme.finalPriceInWei = priceInWei;
+        scheme.finalRoamingPriceInWei = roamingPriceInWei;
 
         return scheme;
     }
 
-    function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
+    function getChargingScheme(address EVaddress, address CSaddress, address CPOaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == EVaddress, "402");
         require(contractInstance.isEV(EVaddress), "403");
         require(contractInstance.isCS(CSaddress), "303");
+        require(contractInstance.isCPO(CPOaddress), "203");
         startTime = (startTime == 0) ? block.timestamp : startTime;
 
-        Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress);
+        Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress, CPOaddress);
 
         // Make sure that there is still a deal active, and that the car is not fully charged
-        require(contractInstance.isDealActive(EVaddress, T.cpo._address), "503");
+        // TODO : remove some of the require that happened requestCharging?
+        require(contractInstance.isDealActive(EVaddress, CPOaddress), "503");
         require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
         require(startCharge < targetCharge, "708");
         require(targetCharge <= T.ev.maxCapacity, "709");
@@ -141,70 +149,78 @@ contract Charging is Structure, ICharging {
         scheme.startCharge = startCharge;
         scheme.targetCharge = targetCharge;
         scheme.startTime = startTime;
-        scheme.CPOaddress = T.cpo._address;
-        if ( true /*Roaming*/ ) {
-            scheme.CPOroaming = T.cs.cpo;
+        scheme.CPOaddress = CPOaddress;
+
+        Chargelett memory C;
+        // Check if roaming
+        if ( CPOaddress != T.cs.cpo ) {
+            scheme.roaming = true;
+            C.roaming = contractInstance.getRate(T.cs.cpo, T.cs.region);
         }
 
-        Deal memory deal = contractInstance.getDeal(T.ev._address, T.cpo._address);
-        Rate memory rate = contractInstance.getRate(T.cpo._address, T.cs.region);
+        C.deal = contractInstance.getDeal(EVaddress, CPOaddress);
+        C.rate = contractInstance.getRate(CPOaddress, T.cs.region);
 
         // Calculate charge time 
         uint chargeTime = calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
         // Calculate maximum possible charging time
-        uint maxTime = possibleChargingTime(deal, rate, startTime);
+        uint maxTime = possibleChargingTime(C.deal, C.rate, startTime);
 
         scheme.chargeTime = chargeTime;
         scheme.maxTime = maxTime;
         scheme.region = T.cs.region;
 
-        return generateSchemeSlots(scheme, deal, rate, T);
+        return generateSchemeSlots(scheme, C, T);
     }
     
-    function scheduleSmartCharging(address EVaddress, address CSaddress, uint startCharge, uint endDate) public returns (ChargingScheme memory) {
+    function scheduleSmartCharging(address EVaddress, address CSaddress, address CPOaddress, uint startCharge, uint endDate) public returns (ChargingScheme memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == EVaddress || tx.origin == CSaddress, "402/302");
         require(contractInstance.isEV(EVaddress), "403");
         require(contractInstance.isCS(CSaddress), "303");
+        require(contractInstance.isCPO(CPOaddress), "203");
         
-        Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress);
+        Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress, CPOaddress);
                 
-        require(contractInstance.isDealActive(EVaddress, T.cs.cpo), "503");
+        require(contractInstance.isDealActive(EVaddress, CPOaddress), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
-        require(contractInstance.isRegionAvailable(T.cs.cpo, T.cs.region), "804");
+        require(contractInstance.isRatesAvailable(CPOaddress, T.cs.region), "804");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
         require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
         require(endDate != 0 && endDate > block.timestamp, "711");
 
-        // Transfer to new rates
-        contractInstance.transferToNewRates(T.cs.cpo, T.cs.region);
+        // Check roaming
+        Chargelett memory C;
+        if ( CPOaddress != T.cs.cpo ) {
+            require(contractInstance.isRoamingAvailable(T.cs.cpo, T.cs.region), "712");
+            contractInstance.transferToNewRates(T.cs.cpo, T.cs.region); // Update roaming rates if necessary
+            C.roaming = contractInstance.getRate(T.cs.cpo, T.cs.region);
+        }
 
-        Deal memory deal = contractInstance.getDeal(T.ev._address, T.cpo._address);
-        Rate memory rate = contractInstance.getRate(T.cs.cpo, T.cs.region);
+        // Transfer to new rates
+        contractInstance.transferToNewRates(CPOaddress, T.cs.region);
+
+        C.deal = contractInstance.getDeal(EVaddress, CPOaddress);
+        C.rate = contractInstance.getRate(CPOaddress, T.cs.region);
 
         // Get smart charging spot
-        return getSmartChargingSpot(T, deal, rate, Temp(startCharge, endDate));
+        return getSmartChargingSpot(T, C, startCharge, endDate);
     }
 
-    struct Temp {
-        uint startCharge;
-        uint endDate;
-    }
-
-    function getSmartChargingSpot(Triplett memory T, Deal memory deal, Rate memory rate, Temp memory temp) private returns (ChargingScheme memory) {
+    function getSmartChargingSpot(Triplett memory T, Chargelett memory C, uint startCharge, uint endDate) private returns (ChargingScheme memory) {
         // Get the charge time
-        uint chargeTime = calculateChargeTimeInSeconds((T.ev.maxCapacity - temp.startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
+        uint chargeTime = calculateChargeTimeInSeconds((T.ev.maxCapacity - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
         // The start time for smart charging
         uint currentDate = getNextRateSlot(block.timestamp + 30 seconds);
 
         // Calculate charge window based on preferences
-        require(temp.endDate >= currentDate, "711");
-        uint chargeWindow = temp.endDate - currentDate;
+        require(endDate >= currentDate, "711");
+        uint chargeWindow = endDate - currentDate;
 
         // The max time left for charging according to deal and rate
-        uint maxTime = possibleChargingTime(deal, rate, currentDate);
+        uint maxTime = possibleChargingTime(C.deal, C.rate, currentDate);
 
         // Charge window needs to be within bounds of maximum possible charging time
         chargeWindow = chargeWindow < maxTime
@@ -219,14 +235,15 @@ contract Charging is Structure, ICharging {
 
         ChargingScheme memory scheme;
         scheme.id = getNextSchemeId();
-        scheme.startCharge = temp.startCharge;
+        scheme.startCharge = startCharge;
         scheme.targetCharge = T.ev.maxCapacity;
         scheme.chargeTime = chargeTime;
         scheme.startTime = currentDate;
         scheme.maxTime = maxTime;
         scheme.region = T.cs.region;
         scheme.smartCharging = true;
-        scheme = generateSchemeSlots(scheme, deal, rate, T);
+        scheme.roaming = (C.roaming.currentRoaming != 0);
+        scheme = generateSchemeSlots(scheme, C, T);
 
         while ( true ) {
             // The start time for smart charging
@@ -239,15 +256,16 @@ contract Charging is Structure, ICharging {
 
             ChargingScheme memory suggestion;
             suggestion.id = scheme.id;
-            suggestion.startCharge = temp.startCharge;
+            suggestion.startCharge = startCharge;
             suggestion.targetCharge = T.ev.maxCapacity;
             suggestion.chargeTime = chargeTime;
             suggestion.startTime = currentDate;
             suggestion.maxTime = maxTime;
             suggestion.region = T.cs.region;
-            suggestion.smartCharging = true;
+            suggestion.smartCharging = scheme.smartCharging;
+            suggestion.roaming = scheme.roaming;
 
-            suggestion = generateSchemeSlots(suggestion, deal, rate, T);
+            suggestion = generateSchemeSlots(suggestion, C, T);
 
             if ( (suggestion.priceInWei > scheme.priceInWei && suggestion.activeTime >= scheme.activeTime) || (suggestion.activeTime > scheme.activeTime) ) {
                 scheme = suggestion;
@@ -263,15 +281,12 @@ contract Charging is Structure, ICharging {
         require(tx.origin == EVaddress, "402");
         require(contractInstance.isCS(CSaddress), "303");
         require(contractInstance.isEV(EVaddress), "403");
-        require(schemeId > 0, "703");
-
-        CS memory cs = contractInstance.getCS(CSaddress);
-
-        require(contractInstance.isDealActive(EVaddress, cs.cpo), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
+        require(schemeId > 0, "703");
 
         // Get scheme
         ChargingScheme memory scheme = contractInstance.getCharging(EVaddress, CSaddress);
+        require(contractInstance.isDealActive(EVaddress, scheme.CPOaddress), "503");
         require(scheme.id == schemeId, "704");
         require(scheme.smartCharging, "710");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
@@ -283,7 +298,7 @@ contract Charging is Structure, ICharging {
 
         // Check funds
         uint moneyAvailable = deposit + contractInstance.getDeposit(EVaddress);
-        uint moneyRequired = scheme.priceInWei;
+        uint moneyRequired = scheme.priceInWei + scheme.roamingPriceInWei;
 
         require(moneyAvailable >= moneyRequired, "901");
 
@@ -302,7 +317,7 @@ contract Charging is Structure, ICharging {
         return nextSchemeId;
     }
 
-    function generateSchemeSlots(ChargingScheme memory scheme, Deal memory deal, Rate memory rate, Triplett memory T) private pure returns (ChargingScheme memory) {
+    function generateSchemeSlots(ChargingScheme memory scheme, Chargelett memory C, Triplett memory T) private pure returns (ChargingScheme memory) {
         uint chargeTimeLeft = scheme.chargeTime;
         uint startTime = scheme.startTime;
         uint elapsedTime;
@@ -311,7 +326,7 @@ contract Charging is Structure, ICharging {
         uint index = 0;
         while ( chargeTimeLeft > 0 && elapsedTime < scheme.maxTime ) {
             
-            (bool useSlot, uint timeInSlot, uint currentRate) = loop(startTime, elapsedTime, deal, rate);
+            (bool useSlot, uint timeInSlot, uint currentRate) = slotDetails(startTime, elapsedTime, C.deal, C.rate);
 
             // If time in slot is bigger than max time allowed, cap to max time
             timeInSlot = elapsedTime+timeInSlot > scheme.maxTime
@@ -331,10 +346,10 @@ contract Charging is Structure, ICharging {
                 scheme.activeTime += timeInSlot;
                 scheme.outputCharge += T.cs.powerDischarge * timeInSlot;
                 scheme.prices[index] = timeInSlot * currentRate * T.cs.powerDischarge;
-                scheme.roaming[index] = T.cs.powerDischarge * timeInSlot * rate.currentRoaming; // TODO : Change to correct roaming
+                scheme.roamingFees[index] = timeInSlot * C.roaming.currentRoaming * T.cs.powerDischarge;
 
                 scheme.price.value += scheme.prices[index];
-                scheme.roamingPrice.value += scheme.roaming[index];
+                scheme.roamingPrice.value += scheme.roamingFees[index];
             }
             else {
                 elapsedTime += timeInSlot; 
@@ -354,7 +369,7 @@ contract Charging is Structure, ICharging {
 
         return scheme;
     }
-    function loop(uint startTime, uint elapsedTime, Deal memory deal, Rate memory rate) private pure returns (bool, uint, uint) {
+    function slotDetails(uint startTime, uint elapsedTime, Deal memory deal, Rate memory rate) private pure returns (bool, uint, uint) {
         uint currentTime = startTime + elapsedTime;
 
         uint currentRate = (rate.changeDate != 0 && currentTime >= rate.changeDate) 
@@ -384,13 +399,12 @@ contract Charging is Structure, ICharging {
         return slotRate.value <= maxRate.value;
     }
 
-    function getChargingSchemeFinalPrice(ChargingScheme memory scheme, uint finishTime) private pure returns (uint) {      
-        // TODO : Even with this if statement, scheme.___ should still be assigned the correct final price 
+    function getChargingSchemeFinalPrice(ChargingScheme memory scheme, uint finishTime) private pure returns (uint, uint) {
         if ( scheme.endTime == finishTime ) {
-            return scheme.priceInWei;
+            return (scheme.priceInWei, scheme.roamingPriceInWei);
         }
         else if ( scheme.startTime == finishTime ) {
-            return 0;
+            return (0, 0);
         }
 
         uint elapsedTime;
@@ -411,12 +425,12 @@ contract Charging is Structure, ICharging {
                             : timeInSlot;
 
             scheme.finalPrice.value += (scheme.prices[i] * timeInSlot) / scheme.durations[i];
-            scheme.finalRoamingPrice.value += (scheme.roaming[i] * timeInSlot) / scheme.durations[i];
+            scheme.finalRoamingPrice.value += (scheme.roamingFees[i] * timeInSlot) / scheme.durations[i];
             elapsedTime += timeInSlot;
 
         }
 
-        return priceToWei(scheme.finalPrice);
+        return (priceToWei(scheme.finalPrice), priceToWei(scheme.finalRoamingPrice));
     }
 
     function possibleChargingTime(Deal memory deal, Rate memory rate, uint startTime) private pure returns (uint) {

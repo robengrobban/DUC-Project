@@ -78,7 +78,7 @@ contract Contract is Structure, IContract {
     event InssufficientDeposit(address indexed ev, address indexed cs);
     event ChargingSchemeTimeout(address indexed ev, address indexed cs, ChargingScheme scheme);
     event ChargingAcknowledged(address indexed ev, address indexed cs, ChargingScheme scheme);
-    event ChargingStopped(address indexed ev, address indexed cs, ChargingScheme scheme, uint finalPriceInWei);
+    event ChargingStopped(address indexed ev, address indexed cs, ChargingScheme scheme, uint finalPriceInWei, uint finalRoamingPriceInWei);
 
     event SmartChargingScheduled(address indexed ev, address indexed cs, ChargingScheme scheme);
 
@@ -150,8 +150,11 @@ contract Contract is Structure, IContract {
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];
         return scheme.smartCharging && scheme.CSaccepted && scheme.EVaccepted && !scheme.finished;
     }
-    function isRegionAvailable(address CPOaddress, bytes3 region) public view returns (bool) {
+    function isRatesAvailable(address CPOaddress, bytes3 region) public view returns (bool) {
         return rates[CPOaddress][region].current[0] != 0;
+    }
+    function isRoamingAvailable(address CPOaddress, bytes3 region) public view returns (bool) {
+        return rates[CPOaddress][region].currentRoaming != 0;
     }
 
     function registerCPO(address CPOaddress, bytes5 name) public {
@@ -223,8 +226,8 @@ contract Contract is Structure, IContract {
         deposits[EVaddress] = 0;
     }*/
 
-    function requestCharging(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) payable public {
-        ChargingScheme memory scheme = chargingInstance.requestCharging(EVaddress, CSaddress, startTime, startCharge, targetCharge, msg.value);
+    function requestCharging(address EVaddress, address CSaddress, address CPOaddress, uint startTime, uint startCharge, uint targetCharge) payable public {
+        ChargingScheme memory scheme = chargingInstance.requestCharging(EVaddress, CSaddress, CPOaddress, startTime, startCharge, targetCharge, msg.value);
 
         // Add to deposits
         deposits[EVaddress] += msg.value;
@@ -250,12 +253,18 @@ contract Contract is Structure, IContract {
     function stopCharging(address EVaddress, address CSaddress) public {
         ChargingScheme memory scheme = chargingInstance.stopCharging(EVaddress, CSaddress);
         chargingSchemes[EVaddress][CSaddress] = scheme;
-        Triplett memory t = getTriplett(EVaddress, CSaddress);
+        Triplett memory T = getTriplett(EVaddress, CSaddress, scheme.CPOaddress);
 
         // Transfer funds
         uint priceInWei = scheme.finalPriceInWei;
-        payable(t.cpo._address).transfer(priceInWei);
+        payable(scheme.CPOaddress).transfer(priceInWei);
         deposits[EVaddress] -= priceInWei;
+
+        uint roamingPriceInWei = scheme.finalRoamingPriceInWei;
+        if ( scheme.roaming ) {
+            payable(T.cs.cpo).transfer(roamingPriceInWei);
+            deposits[EVaddress] -= roamingPriceInWei;
+        }
 
         // Deposits kickback
         uint remaining = deposits[EVaddress];
@@ -263,12 +272,12 @@ contract Contract is Structure, IContract {
         deposits[EVaddress] -= remaining;
 
         // Inform about charging scheme termination
-        emit ChargingStopped(EVaddress, CSaddress, scheme, priceInWei);
+        emit ChargingStopped(EVaddress, CSaddress, scheme, priceInWei, roamingPriceInWei);
     }
     
-    function scheduleSmartCharging(address EVaddress, address CSaddress, uint startCharge, uint endDate) public {
+    function scheduleSmartCharging(address EVaddress, address CSaddress, address CPOaddress, uint startCharge, uint endDate) public {
         // Get smart charging spot
-        ChargingScheme memory scheme = chargingInstance.scheduleSmartCharging(EVaddress, CSaddress, startCharge, endDate);
+        ChargingScheme memory scheme = chargingInstance.scheduleSmartCharging(EVaddress, CSaddress, CPOaddress, startCharge, endDate);
         chargingSchemes[EVaddress][CSaddress] = scheme;
 
         // Emit event regarding smart charging
@@ -291,8 +300,8 @@ contract Contract is Structure, IContract {
         emit ChargingRequested(EVaddress, CSaddress, scheme);
     }
 
-    function getChargingScheme(address EVaddress, address CSaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
-        return chargingInstance.getChargingScheme(EVaddress, CSaddress, startTime, startCharge, targetCharge);
+    function getChargingScheme(address EVaddress, address CSaddress, address CPOaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
+        return chargingInstance.getChargingScheme(EVaddress, CSaddress, CPOaddress, startTime, startCharge, targetCharge);
     }
 
     /*

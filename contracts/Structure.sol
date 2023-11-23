@@ -94,7 +94,7 @@ interface Structure {
         uint id;
 
         address CPOaddress; // Address of which CPO is used for rates
-        address CPOroaming; // Address of which CPO is used for roaming, only present if is roaming, i.e. CS CPO
+        bool roaming; // If this charging scheme is of type roaming, 
 
         bool EVaccepted;
         bool CSaccepted;
@@ -131,7 +131,7 @@ interface Structure {
         uint slotsUsed;
         uint[RATE_SLOTS*2] durations;
         uint[RATE_SLOTS*2] prices;
-        uint[RATE_SLOTS*2] roaming;
+        uint[RATE_SLOTS*2] roamingFees;
     }
 
     struct Triplett {
