@@ -82,6 +82,8 @@ contract Contract is Structure, IContract {
 
     event SmartChargingScheduled(address indexed ev, address indexed cs, ChargingScheme scheme);
 
+    event Payment(address indexed from, address indexed to, uint amount);
+
     /*
     * PUBLIC FUNCTIONS
     */
@@ -259,11 +261,13 @@ contract Contract is Structure, IContract {
         uint priceInWei = scheme.finalPriceInWei;
         payable(scheme.CPOaddress).transfer(priceInWei);
         deposits[EVaddress] -= priceInWei;
+        emit Payment(EVaddress, scheme.CPOaddress, priceInWei);
 
         uint roamingPriceInWei = scheme.finalRoamingPriceInWei;
         if ( scheme.roaming ) {
             payable(T.cs.cpo).transfer(roamingPriceInWei);
             deposits[EVaddress] -= roamingPriceInWei;
+            emit Payment(EVaddress, T.cs.cpo, roamingPriceInWei);
         }
 
         // Deposits kickback
