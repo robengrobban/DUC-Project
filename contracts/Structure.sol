@@ -36,7 +36,7 @@ interface Structure {
         bool exist;
         bytes5 name;
         address _address;
-        bool useNordPoolRates;
+        bool automaticRates;
     }
     struct CS {
         bool exist;
