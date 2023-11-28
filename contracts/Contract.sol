@@ -34,10 +34,6 @@ contract Contract is Structure, IContract {
         rateInstance = IRate(rateAddress);
         chargingInstance = ICharging(chargingAddress);
     }
-
-    function debugOwner() public view returns (address, IEntity, IDeal, IConnection, IRate) {
-        return (owner, entityInstance, dealInstance, connectionInstance, rateInstance);
-    }
     
 
     /*
@@ -61,12 +57,12 @@ contract Contract is Structure, IContract {
     * EVENTS
     */
 
-    event CPORegistered(address cpo);
-    event CSRegistered(address cs, address cpo);
-    event EVRegistered(address ev);
+    event CPORegistered(address indexed cpo);
+    event CSRegistered(address indexed cs, address indexed cpo);
+    event EVRegistered(address indexed ev);
 
     event DealProposed(address indexed ev, address indexed cpo, Deal deal);
-    event DealProposalReverted(address indexed ev, address indexed cpo, Deal deal);
+    event DealProposalReverted(address indexed ev, address indexed cpo);
     event DealResponded(address indexed ev, address indexed cpo, bool accepted, Deal deal);
 
     event ConnectionMade(address indexed ev, address indexed cs, Connection connection);
@@ -89,22 +85,22 @@ contract Contract is Structure, IContract {
     */
 
     function isRegistered(address target) public view returns (bool) {
-        return CPOs[target].exist || CSs[target].exist || EVs[target].exist;
+        return CPOs[target]._address != address(0) || CSs[target]._address != address(0) || EVs[target]._address != address(0);
     }
     function isCPO(address target) public view returns (bool) {
-        return CPOs[target].exist;
+        return CPOs[target]._address != address(0);
     }
     function getCPO(address target) public view returns (CPO memory) {
         return CPOs[target];
     }
     function isCS(address target) public view returns (bool) {
-        return CSs[target].exist;
+        return CSs[target]._address != address(0);
     }
     function getCS(address target) public view returns (CS memory) {
         return CSs[target];
     }
     function isEV(address target) public view returns (bool) {
-        return EVs[target].exist;
+        return EVs[target]._address != address(0);
     }
     function getEV(address target) public view returns (EV memory) {
         return EVs[target];
@@ -116,9 +112,9 @@ contract Contract is Structure, IContract {
             cpo: CPOs[CPOaddress]
         });
     }
-    function getTriplett(address EVaddress, address CSaddress) public view returns (Triplett memory) {
+    /*function getTriplett(address EVaddress, address CSaddress) public view returns (Triplett memory) {
         return getTriplett(EVaddress, CSaddress, CSs[CSaddress].cpo);
-    }
+    }*/
 
     function getDeal(address EVaddress, address CPOaddress) public view returns (Deal memory) {
         return deals[EVaddress][CPOaddress];
@@ -158,46 +154,48 @@ contract Contract is Structure, IContract {
     function isRoamingAvailable(address CPOaddress, bytes3 region) public view returns (bool) {
         return rates[CPOaddress][region].currentRoaming != 0;
     }
+    
+    /*
+    * CONTRACT USER INTERFACES
+    */ 
 
-    function registerCPO(address CPOaddress, bytes5 name) public {
-        CPOs[CPOaddress] = entityInstance.createCPO(CPOaddress, name);
+    function registerCPO(address CPOaddress, bytes5 name, bool automaticRates) public {
+        CPOs[CPOaddress] = entityInstance.createCPO(CPOaddress, name, automaticRates);
         emit CPORegistered(CPOaddress);
     }
-
     function registerCS(address CPOaddress, address CSaddress, bytes3 region, uint powerDischarge) public {
         CSs[CSaddress] = entityInstance.createCS(CSaddress, CPOaddress, region, powerDischarge);
         emit CSRegistered(CSaddress, CPOaddress);
     }
-
     function registerEV(address EVaddress, uint maxCapacity, uint batteryEfficiency) public {
         EVs[EVaddress] = entityInstance.createEV(EVaddress, maxCapacity, batteryEfficiency);
         emit EVRegistered(EVaddress);
     }
 
-    function proposeDeal(address EVaddress, address CPOaddress) public {
-        Deal memory proposedDeal = dealInstance.proposeDeal(EVaddress, CPOaddress);
+
+
+    function proposeDeal(address EVaddress, address CPOaddress, DealParameters calldata dealParameters) public {
+        Deal memory proposedDeal = dealInstance.proposeDeal(EVaddress, CPOaddress, dealParameters);
         deals[EVaddress][CPOaddress] = proposedDeal;
         emit DealProposed(EVaddress, CPOaddress, proposedDeal);
     }
-
     function revertProposedDeal(address EVaddress, address CPOaddress, uint dealId) public {
-        Deal memory proposedDeal = dealInstance.revertProposedDeal(EVaddress, CPOaddress, dealId);
-        deals[EVaddress][CPOaddress] = proposedDeal;
-        emit DealProposalReverted(EVaddress, CPOaddress, proposedDeal);
+        deals[EVaddress][CPOaddress] = dealInstance.revertProposedDeal(EVaddress, CPOaddress, dealId);
+        emit DealProposalReverted(EVaddress, CPOaddress);
     }
-
     function respondDeal(address CPOaddress, address EVaddress, bool accepted, uint dealId) public {
         Deal memory proposedDeal = dealInstance.respondDeal(CPOaddress, EVaddress, accepted, dealId);
         deals[EVaddress][CPOaddress] = proposedDeal;
         emit DealResponded(EVaddress, CPOaddress, accepted, proposedDeal);
     }
 
+
+
     function connect(address EVaddress, address CSaddress, uint nonce) public {
         Connection memory connection = connectionInstance.connect(EVaddress, CSaddress, nonce);
         connections[EVaddress][CSaddress] = connection;
         emit ConnectionMade(EVaddress, CSaddress, connection);
     }
-
     function disconnect(address EVaddress, address CSaddress) public {
         Connection memory connection = connectionInstance.disconnect(EVaddress, CSaddress);
         connections[EVaddress][CSaddress] = connection;
@@ -209,11 +207,15 @@ contract Contract is Structure, IContract {
         }
     }
 
+
+
     function setRates(address CPOaddress, bytes3 region, uint[RATE_SLOTS] calldata newRates, uint newRoaming, uint ratePrecision) public {
         Rate memory rate = rateInstance.setRates(CPOaddress, region, newRates, newRoaming, ratePrecision);
         rates[CPOaddress][region] = rate;
         emit NewRates(CPOaddress, region, rate);
     }
+
+
 
     function addDeposit(address EVaddress) public payable {
         require(msg.sender == EVaddress, "402");
@@ -228,6 +230,8 @@ contract Contract is Structure, IContract {
         deposits[EVaddress] = 0;
     }*/
 
+
+
     function requestCharging(address EVaddress, address CSaddress, address CPOaddress, uint startTime, uint startCharge, uint targetCharge) payable public {
         ChargingScheme memory scheme = chargingInstance.requestCharging(EVaddress, CSaddress, CPOaddress, startTime, startCharge, targetCharge, msg.value);
 
@@ -237,7 +241,6 @@ contract Contract is Structure, IContract {
 
         emit ChargingRequested(EVaddress, CSaddress, scheme);
     }
-
     function acknowledgeCharging(address CSaddress, address EVaddress, uint schemeId) public {
         ChargingScheme memory scheme = chargingInstance.acknowledgeCharging(CSaddress, EVaddress, schemeId);
 
@@ -251,7 +254,6 @@ contract Contract is Structure, IContract {
         chargingSchemes[EVaddress][CSaddress] = scheme;
         emit ChargingAcknowledged(EVaddress, CSaddress, scheme);
     }
-
     function stopCharging(address EVaddress, address CSaddress) public {
         ChargingScheme memory scheme = chargingInstance.stopCharging(EVaddress, CSaddress);
         chargingSchemes[EVaddress][CSaddress] = scheme;
@@ -278,7 +280,12 @@ contract Contract is Structure, IContract {
         // Inform about charging scheme termination
         emit ChargingStopped(EVaddress, CSaddress, scheme, priceInWei, roamingPriceInWei);
     }
-    
+    function getChargingScheme(address EVaddress, address CSaddress, address CPOaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
+        return chargingInstance.getChargingScheme(EVaddress, CSaddress, CPOaddress, startTime, startCharge, targetCharge);
+    }
+
+
+
     function scheduleSmartCharging(address EVaddress, address CSaddress, address CPOaddress, uint startCharge, uint endDate) public {
         // Get smart charging spot
         ChargingScheme memory scheme = chargingInstance.scheduleSmartCharging(EVaddress, CSaddress, CPOaddress, startCharge, endDate);
@@ -287,7 +294,6 @@ contract Contract is Structure, IContract {
         // Emit event regarding smart charging
         emit SmartChargingScheduled(EVaddress, CSaddress, scheme);
     }
-
     function acceptSmartCharging(address EVaddress, address CSaddress, uint schemeId) public payable {
         ChargingScheme memory scheme = chargingInstance.acceptSmartCharging(EVaddress, CSaddress, schemeId, msg.value);
 
@@ -302,10 +308,6 @@ contract Contract is Structure, IContract {
         deposits[EVaddress] += msg.value;
         chargingSchemes[EVaddress][CSaddress] = scheme;
         emit ChargingRequested(EVaddress, CSaddress, scheme);
-    }
-
-    function getChargingScheme(address EVaddress, address CSaddress, address CPOaddress, uint startTime, uint startCharge, uint targetCharge) public view returns (ChargingScheme memory) {
-        return chargingInstance.getChargingScheme(EVaddress, CSaddress, CPOaddress, startTime, startCharge, targetCharge);
     }
 
     /*
@@ -356,39 +358,6 @@ contract Contract is Structure, IContract {
 
     function priceToWei(PrecisionNumber memory price) private pure returns (uint) {
         return ((price.value * WEI_FACTOR) + (price.precision/2)) / price.precision;
-    }
-
-
-    /*
-    * DEBUG FUNCTION
-    */
-
-    function debugConnection(address EVaddress, address CSaddress) public view returns (Connection memory) {
-        return connections[EVaddress][CSaddress];
-    }
-
-    function debugDeal(address EVaddress, address CPOaddress) public view returns (Deal memory) {
-        return deals[EVaddress][CPOaddress];
-    }
-
-    function debugEV(address EVaddress) public view returns (EV memory) {
-        return EVs[EVaddress];
-    }
-
-    function debugCS(address CSaddress) public view returns (CS memory) {
-        return CSs[CSaddress];
-    }
-
-    function debugCPO(address CPOaddress) public view returns (CPO memory) {
-        return CPOs[CPOaddress];
-    }
-
-    function debugChargingScheme(address EVaddress, address CSaddress) public view returns (ChargingScheme memory) {
-        return chargingSchemes[EVaddress][CSaddress];
-    }
-
-    function debugRates(address CPOaddress, bytes3 region) public view returns (Rate memory) {
-        return rates[CPOaddress][region];
     }
 
 }

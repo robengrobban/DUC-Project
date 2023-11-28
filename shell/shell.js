@@ -13,13 +13,13 @@ await operator.connectContract();
 await operator2.connectContract();
 
 if (false) {
-    console.log("DEBUG EV: ", await car.debugEV());
-    console.log("DEBUG CPO: ", await operator.debugCPO());
-    console.log("DEBUG CS: ", await station.debugCS());
-    console.log("DEBUG DEAL: ", await car.debugDeal(car.account.address, operator.account.address));
-    console.log("DEBUG CONNECTION: ", await car.debugConnection(car.account.address, station.account.address));
-    console.log("DEBUG CHARGING SCHEME: ", await car.debugChargingScheme(car.account.address, station.account.address));
-    console.log("DEBUG RATING: ", await operator.debugRates(operator.account.address, "SE1"));
+    console.log("DEBUG EV: ", await car.getEV());
+    console.log("DEBUG CPO: ", await operator.getCPO());
+    console.log("DEBUG CS: ", await station.getCS());
+    console.log("DEBUG DEAL: ", await car.getDeal(car.account.address, operator.account.address));
+    console.log("DEBUG CONNECTION: ", await car.getConnection(car.account.address, station.account.address));
+    console.log("DEBUG CHARGING SCHEME: ", await car.getCharging(car.account.address, station.account.address));
+    console.log("DEBUG RATING: ", await operator.getRate(operator.account.address, "SE1"));
     console.log("EV MONEY: ", await car.balance());
     console.log("EV DEPOSIT: ", await car.getDeposit());
     console.log("CPO MONEY: ", await operator.balance());

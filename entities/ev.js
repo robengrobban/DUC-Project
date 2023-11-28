@@ -34,7 +34,8 @@ class EV extends Entity {
     async proposeDeal(CPOaddress) {
         return await this.contract.methods.proposeDeal(
             this.account.address, 
-            CPOaddress
+            CPOaddress,
+            [[500, this.precision], false, true] // DealProperties
         ).send();
     }
 

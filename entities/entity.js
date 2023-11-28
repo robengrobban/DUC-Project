@@ -16,6 +16,8 @@ class Entity {
 
     contract;
 
+    precision = 1000000000;
+
     /**
      * Functions
      */
@@ -80,44 +82,41 @@ class Entity {
         );
     }
 
-    async debugOwner() {
-        return await this.contract.methods.debugOwner().call();
-    }
-    async debugDeal(EVaddress, CPOaddress) {
-        return await this.contract.methods.debugDeal(
+    async getDeal(EVaddress, CPOaddress) {
+        return await this.contract.methods.getDeal(
             EVaddress, 
             CPOaddress
         ).call();
     }
-    async debugConnection(EVaddress, CSaddress) {
-        return await this.contract.methods.debugConnection(
+    async getConnection(EVaddress, CSaddress) {
+        return await this.contract.methods.getConnection(
             EVaddress, 
             CSaddress
         ).call();
     }
-    async debugChargingScheme(EVaddress, CSaddress) {
-        return await this.contract.methods.debugChargingScheme(
+    async getCharging(EVaddress, CSaddress) {
+        return await this.contract.methods.getCharging(
             EVaddress, 
             CSaddress
         ).call();
     }
-    async debugEV(address = this.account.address) {
-        return await this.contract.methods.debugEV(
+    async getEV(address = this.account.address) {
+        return await this.contract.methods.getEV(
             address
         ).call();
     }
-    async debugCS(address = this.account.address) {
-        return await this.contract.methods.debugCS(
+    async getCS(address = this.account.address) {
+        return await this.contract.methods.getCS(
             address
         ).call();
     }
-    async debugCPO(address = this.account.address) {
-        return await this.contract.methods.debugCPO(
+    async getCPO(address = this.account.address) {
+        return await this.contract.methods.getCPO(
             address
         ).call();
     }
-    async debugRates(address, region) {
-        return await this.contract.methods.debugRates(
+    async getRate(address, region) {
+        return await this.contract.methods.getRate(
             address,
             this.web3.utils.fromAscii(region)
         ).call();

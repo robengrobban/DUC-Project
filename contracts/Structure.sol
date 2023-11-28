@@ -33,20 +33,17 @@ interface Structure {
     }
 
     struct CPO {
-        bool exist;
-        bytes5 name;
         address _address;
+        bytes5 name;
         bool automaticRates;
     }
     struct CS {
-        bool exist;
         address _address;
-        bytes3 region;
+        bytes3 region; // Region CS is in, affects rates/roaming
         uint powerDischarge; // Watt output
         address cpo; // Connection to what CPO
     }
     struct EV {
-        bool exist;
         address _address;
         uint maxCapacity; // Watt Seconds of max charge
         uint batteryEfficiency; // Battery charge efficency (0-100)
@@ -59,8 +56,11 @@ interface Structure {
         address CPO;
         uint startDate;
         uint endDate;
-        bool onlyRewneableEnergy;
+        DealParameters dealParameters;
+    }
+    struct DealParameters {
         PrecisionNumber maxRate;
+        bool onlyRewneableEnergy;
         bool allowSmartCharging;
     }
 
