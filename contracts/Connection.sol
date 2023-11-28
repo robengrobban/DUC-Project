@@ -30,7 +30,6 @@ contract Connection is Structure, IConnection {
     * PUBLIC FUNCTIONS
     */
 
-
     function connect(address EVaddress, address CSaddress, uint nonce) public view returns (Connection memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == EVaddress || tx.origin == CSaddress, "402/302");
@@ -39,18 +38,27 @@ contract Connection is Structure, IConnection {
         require(nonce != 0, "601");
         require(!contractInstance.isConnected(EVaddress, CSaddress), "602");
 
-        // TODO : Check if there exists a deal?
-
         Connection memory connection = contractInstance.getConnection(EVaddress, CSaddress);
+
+        if ( connection.nonce == 0 ) {
+            connection.nonce = nonce;
+        }
 
         if ( tx.origin == EVaddress ) {
             // Check if connection is pending
-            if ( connection.nonce == nonce && connection.EVconnected ) {
+            if ( connection.EVconnected && !connection.CSconnected && connection.nonce == nonce ) {
                 revert("603");
             }
 
+            // Change nonce
+            if ( connection.EVconnected && !connection.CSconnected && connection.nonce != nonce ) {
+                connection.nonce = nonce;
+            }
+
+            // Check that nonce is correct
+            require(connection.nonce != nonce, "606");
+
             // Accept connection as EV
-            connection.nonce = nonce;
             connection.EV = EVaddress;
             connection.CS = CSaddress;
             connection.EVconnected = true;
@@ -60,12 +68,19 @@ contract Connection is Structure, IConnection {
         }
         else {
             // Check if connection is pending
-            if ( connection.nonce == nonce && connection.CSconnected ) {
+            if ( connection.CSconnected && !connection.EVconnected && connection.nonce == nonce ) {
                 revert("604");
             }
 
+            // Change nonce 
+            if ( connection.CSconnected && !connection.EVconnected && connection.nonce != nonce ) {
+                connection.nonce = nonce;
+            }
+
+            // Check that nonce is correct
+            require(connection.nonce != nonce, "606");
+
             // Accept connection as CS
-            connection.nonce = nonce;
             connection.EV = EVaddress;
             connection.CS = CSaddress;
             connection.CSconnected = true;

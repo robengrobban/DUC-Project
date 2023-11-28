@@ -37,6 +37,7 @@
  - 603 : Connection is waiting for response from CS party
  - 604 : Connection is waiting for response from EV party
  - 605 : No active connection exists
+ - 606 : Different nonce than registered
 
 700 (Charging)
  - 701 : Charging must be in the future

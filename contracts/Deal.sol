@@ -59,7 +59,7 @@ contract Deal is Structure, IDeal {
             accepted: false,
             startDate: block.timestamp,
             endDate: block.timestamp + 1 weeks,
-            dealParameters: dealParameters
+            parameters: dealParameters
         });
 
         return proposedDeal;

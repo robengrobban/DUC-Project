@@ -381,7 +381,7 @@ contract Charging is Structure, ICharging {
         
         uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate slot starts.
 
-        bool useSlot = currentRate <= deal.maxRate.value;
+        bool useSlot = currentRate <= deal.parameters.maxRate.value;
 
         uint timeInSlot = nextRateSlot - currentTime;
 
@@ -389,7 +389,7 @@ contract Charging is Structure, ICharging {
     }
 
     function shouldUseSlot(uint currentRate, Deal memory deal, Rate memory rate) private pure returns (bool) {
-        PrecisionNumber memory maxRate = deal.maxRate;
+        PrecisionNumber memory maxRate = deal.parameters.maxRate;
 
         uint CPOprecision = rate.precision;
         PrecisionNumber memory slotRate = PrecisionNumber({

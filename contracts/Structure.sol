@@ -56,7 +56,7 @@ interface Structure {
         address CPO;
         uint startDate;
         uint endDate;
-        DealParameters dealParameters;
+        DealParameters parameters;
     }
     struct DealParameters {
         PrecisionNumber maxRate;
