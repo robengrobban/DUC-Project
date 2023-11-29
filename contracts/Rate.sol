@@ -90,6 +90,7 @@ contract Rate is Structure, IRate {
     }
 
     function transferToNewRates(Rate memory rate) public view returns (Rate memory) {
+        // TODO : Probably emit event if automatic rates apply
         if ( rate.changeDate != 0 && block.timestamp >= rate.changeDate ) {
             return transitionRate(rate);
         }

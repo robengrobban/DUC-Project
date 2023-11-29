@@ -52,6 +52,7 @@
  - 710 : Current ChargingScheme is not a smart charging request
  - 711 : Charging end date must be in the future and not before starting date
  - 712 : Roaming fees are not available for this CS and region
+ - 713 : Deal does not allow for smart charging
 
 800 (Rates)
  - 801 : Rates array must be in correct intervall

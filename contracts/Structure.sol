@@ -108,13 +108,13 @@ interface Structure {
         uint outputCharge; // Watt seconds of output charge, if full scheme is used
 
         uint startCharge; // Watt seconds of start charge
-        uint startTime; // Unix time for when charging starts
+        uint startDate; // Unix time for when charging starts
         uint chargeTime; // Seconds of time needed to charge EV
         uint activeTime; // Seconds of time CS is charging EV, based on user preferneces of max rates
         uint idleTime; // Seconds of time CS is not charging EV, based on user preferences of max rates
         uint maxTime; // The maximum amount of time a scheme can run for in seconds (ends at deal end or when new (unkown) rates start)
-        uint endTime; // Unix time for when charging should end
-        uint finishTime; // Unix time for when charing actually end
+        uint endDate; // Unix time for when charging should end
+        uint finishDate; // Unix time for when charing actually end
         
         bytes3 region;
 
