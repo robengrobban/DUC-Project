@@ -88,6 +88,8 @@ interface Structure {
         uint[RATE_SLOTS] historical; // What the last rate was
         uint historicalRoaming; // What the roaming last was
         uint historicalDate; // When the rates in historical started
+
+        uint automaticNextRoaming; // The next roaming when the next automatic update happens.
     }
 
     struct ChargingScheme {

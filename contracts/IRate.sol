@@ -8,6 +8,7 @@ interface IRate is Structure {
 
     function setRates(address, bytes3, uint[RATE_SLOTS] calldata, uint, uint) external view returns (Rate memory);
     function transferToNewRates(Rate memory) external view returns (Rate memory);
+    function nextRoaming(address, bytes3, uint, uint) external view returns (Rate memory);
 
     function getNextRateChange() external view returns (uint);
 

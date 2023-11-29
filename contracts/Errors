@@ -59,6 +59,9 @@
  - 803 : Rate precision cannot be altered in new rates
  - 804 : No rates exists for that region
  - 805 : Roaming must be bigger than 0
+ - 806 : Cannot set rates, they are automatically configured
+ - 807 : Current and next rate already exists, cannot change rate
+ - 808 : Next roaming can only be set if automatic rates are configred, they are otherwise set using setRates()
 
 900 (Deposits)
  - 901 : Total deposit is incufficient

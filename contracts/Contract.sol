@@ -212,6 +212,11 @@ contract Contract is Structure, IContract {
         Rate memory rate = rateInstance.setRates(CPOaddress, region, newRates, newRoaming, ratePrecision);
         rates[CPOaddress][region] = rate;
         emit NewRates(CPOaddress, region, rate);
+    } 
+    function nextRoaming(address CPOaddress, bytes3 region, uint newRoaming, uint roamingPrecision) public {
+        Rate memory rate = rateInstance.nextRoaming(CPOaddress, region, newRoaming, roamingPrecision);
+        rates[CPOaddress][region] = rate;
+        emit NewRates(CPOaddress, region, rate);
     }
 
 

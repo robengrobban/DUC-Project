@@ -38,6 +38,9 @@ contract Rate is Structure, IRate {
         require(newRoaming > 0, "805");
         require(ratePrecision == PRECISION, "802");
 
+        CPO memory cpo = contractInstance.getCPO(CPOaddress);
+        require(!cpo.automaticRates, "806");
+
         Rate memory rate = contractInstance.getRate(CPOaddress, region);
 
         // Transfer current rates if it is needed
@@ -52,7 +55,7 @@ contract Rate is Structure, IRate {
             rate.precision = ratePrecision;
         }
         // There are existing rates.
-        else {
+        else if ( rate.next[0] == 0 ) {
             if ( rate.precision != ratePrecision ) {
                 revert("803");
             }
@@ -60,6 +63,28 @@ contract Rate is Structure, IRate {
             rate.nextRoaming = newRoaming;
             rate.changeDate = getNextRateChange();
         }
+        else {
+            revert("807");
+        }
+
+        return rate;
+    }
+
+    function nextRoaming(address CPOaddress, bytes3 region, uint newRoaming, uint roaminPrecision) public view returns (Rate memory) {
+        require(msg.sender == contractAddress, "102");  
+        require(tx.origin == CPOaddress, "202");
+        require(contractInstance.isCPO(CPOaddress), "203");
+        require(newRoaming > 0, "805");
+        require(roaminPrecision == PRECISION, "802");
+
+        CPO memory cpo = contractInstance.getCPO(CPOaddress);
+        require(cpo.automaticRates, "808");
+
+        Rate memory rate = contractInstance.getRate(CPOaddress, region);
+
+        // Transfer current rates if it is needed
+        rate = transferToNewRates(rate);
+        rate.automaticNextRoaming = newRoaming;
 
         return rate;
     }
@@ -108,38 +133,6 @@ contract Rate is Structure, IRate {
     function getNextRateSlot(uint currentTime) private pure returns (uint) {
         uint secondsUntilRateChange = RATE_SLOT_PERIOD - (currentTime % RATE_SLOT_PERIOD);
         return currentTime + secondsUntilRateChange;
-    }
-
-    function getRateSlot(uint time) private pure returns (uint) {
-        return (time / RATE_SLOT_PERIOD) % RATE_SLOTS;
-    }
-
-    function paddPrecisionNumber(PrecisionNumber memory a, PrecisionNumber memory b) private pure returns (PrecisionNumber memory, PrecisionNumber memory) {
-        PrecisionNumber memory first = PrecisionNumber({value: a.value, precision: a.precision});
-        PrecisionNumber memory second = PrecisionNumber({value: b.value, precision: b.precision});
-        
-        if ( first.precision > second.precision ) {
-            uint deltaPrecision = first.precision/second.precision;
-            second.value *= deltaPrecision;
-            second.precision *= deltaPrecision;
-        }
-        else {
-            uint deltaPrecision = second.precision/first.precision;
-            first.value *= deltaPrecision;
-            first.precision *= deltaPrecision;
-        }
-        return (first, second);
-    }
-
-    function calculateChargeTimeInSeconds(uint charge, uint discharge, uint efficiency) private pure returns (uint) {
-        uint secondsPrecision = PRECISION * charge * 100 / (discharge * efficiency);
-        // Derived from: charge / (discharge * efficienct/100)
-        uint secondsRoundUp = (secondsPrecision+(PRECISION/2))/PRECISION;
-        return secondsRoundUp;
-    }
-
-    function priceToWei(PrecisionNumber memory price) private pure returns (uint) {
-        return ((price.value * WEI_FACTOR) + (price.precision/2)) / price.precision;
     }
 
 }
