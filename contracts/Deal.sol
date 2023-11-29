@@ -81,11 +81,11 @@ contract Deal is Structure, IDeal {
         return deleted;
     }
 
-    function respondDeal(address CPOaddress, address EVaddress, bool accepted, uint dealId) public view returns (Deal memory) {
+    function respondDeal(address EVaddress, address CPOaddress, bool accepted, uint dealId) public view returns (Deal memory) {
         require(msg.sender == contractAddress, "102");
         require(CPOaddress == tx.origin, "202");
-        require(contractInstance.isCPO(CPOaddress), "203");
         require(contractInstance.isEV(EVaddress), "403");
+        require(contractInstance.isCPO(CPOaddress), "203");
 
         Deal memory deal = contractInstance.getDeal(EVaddress, CPOaddress);
 

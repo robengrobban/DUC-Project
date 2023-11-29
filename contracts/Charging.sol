@@ -74,7 +74,7 @@ contract Charging is Structure, ICharging {
         return scheme;
     }
 
-    function acknowledgeCharging(address CSaddress, address EVaddress, uint schemeId) public view returns (ChargingScheme memory) {
+    function acknowledgeCharging(address EVaddress, address CSaddress, uint schemeId) public view returns (ChargingScheme memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == CSaddress, "302");
         require(contractInstance.isCS(CSaddress), "303");

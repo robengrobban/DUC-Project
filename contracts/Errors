@@ -36,7 +36,7 @@
  - 602 : Connection already established
  - 603 : Connection is waiting for response from CS party
  - 604 : Connection is waiting for response from EV party
- - 605 : No active connection exists
+ - 605 : No active connection or connection process exists
  - 606 : Different nonce than registered
 
 700 (Charging)

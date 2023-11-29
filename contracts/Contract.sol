@@ -163,7 +163,7 @@ contract Contract is Structure, IContract {
         CPOs[CPOaddress] = entityInstance.createCPO(CPOaddress, name, automaticRates);
         emit CPORegistered(CPOaddress);
     }
-    function registerCS(address CPOaddress, address CSaddress, bytes3 region, uint powerDischarge) public {
+    function registerCS(address CSaddress, address CPOaddress, bytes3 region, uint powerDischarge) public {
         CSs[CSaddress] = entityInstance.createCS(CSaddress, CPOaddress, region, powerDischarge);
         emit CSRegistered(CSaddress, CPOaddress);
     }
@@ -183,8 +183,8 @@ contract Contract is Structure, IContract {
         deals[EVaddress][CPOaddress] = dealInstance.revertProposedDeal(EVaddress, CPOaddress, dealId);
         emit DealProposalReverted(EVaddress, CPOaddress);
     }
-    function respondDeal(address CPOaddress, address EVaddress, bool accepted, uint dealId) public {
-        Deal memory proposedDeal = dealInstance.respondDeal(CPOaddress, EVaddress, accepted, dealId);
+    function respondDeal(address EVaddress, address CPOaddress, bool accepted, uint dealId) public {
+        Deal memory proposedDeal = dealInstance.respondDeal(EVaddress, CPOaddress, accepted, dealId);
         deals[EVaddress][CPOaddress] = proposedDeal;
         emit DealResponded(EVaddress, CPOaddress, accepted, proposedDeal);
     }
@@ -197,8 +197,7 @@ contract Contract is Structure, IContract {
         emit ConnectionMade(EVaddress, CSaddress, connection);
     }
     function disconnect(address EVaddress, address CSaddress) public {
-        Connection memory connection = connectionInstance.disconnect(EVaddress, CSaddress);
-        connections[EVaddress][CSaddress] = connection;
+        connections[EVaddress][CSaddress] = connectionInstance.disconnect(EVaddress, CSaddress);
         emit Disconnection(EVaddress, CSaddress);
 
         // Stop charging if charging is active
@@ -241,8 +240,8 @@ contract Contract is Structure, IContract {
 
         emit ChargingRequested(EVaddress, CSaddress, scheme);
     }
-    function acknowledgeCharging(address CSaddress, address EVaddress, uint schemeId) public {
-        ChargingScheme memory scheme = chargingInstance.acknowledgeCharging(CSaddress, EVaddress, schemeId);
+    function acknowledgeCharging(address EVaddress, address CSaddress, uint schemeId) public {
+        ChargingScheme memory scheme = chargingInstance.acknowledgeCharging(EVaddress, CSaddress, schemeId);
 
         // Timeout
         if ( scheme.id == 0 ) {

@@ -38,8 +38,8 @@ class CS extends Entity {
 
     async acknowledgeCharging(EVaddress, schemeId) {
         return await this.contract.methods.acknowledgeCharging(
-            this.account.address,
             EVaddress,
+            this.account.address,
             schemeId
         ).send();
     }
