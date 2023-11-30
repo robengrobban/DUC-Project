@@ -37,7 +37,6 @@ contract Entity is Structure, IEntity {
         require(name.length != 0, "204");
 
         return CPO({
-            exist: true,
             _address: CPOaddress,
             name: name,
             automaticRates: automaticRates
@@ -53,7 +52,6 @@ contract Entity is Structure, IEntity {
         require(powerDischarge > 0, "304");
 
         return CS({
-            exist: true,
             _address: CSaddress,
             cpo: CPOaddress,
             region: region,
@@ -69,7 +67,6 @@ contract Entity is Structure, IEntity {
         require(batteryEfficiency > 0 && batteryEfficiency < 100, "405");
 
         return EV({
-            exist: true,
             _address: EVaddress,
             maxCapacity: maxCapacity,
             batteryEfficiency: batteryEfficiency
