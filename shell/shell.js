@@ -16,10 +16,6 @@ car.listen('Payment').on('data', log => {
     console.log("Payment: ", log.returnValues);
 });
 
-console.log("DEBUG RATING: ", await operator.getRate(operator.account.address, "SE1"));
-console.log("DEBUG RATING: ", await operator2.getRate(operator2.account.address, "SE1"));
-
-
 if (false) {
     console.log("DEBUG EV: ", await car.getEV());
     console.log("DEBUG CPO: ", await operator.getCPO());
