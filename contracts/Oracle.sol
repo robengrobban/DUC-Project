@@ -52,15 +52,12 @@ contract Oracle is Structure, IOracle {
         // TODO ? Maybe havbe the current and next rate have timestamps with them, for when they are
         // suppose to start, and that way, we can verify that they are indeed correct (in the future)
 
-        uint currentDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
-        uint nextDate = getNextRateChangeAtTime(block.timestamp);
+        currentOracleDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
+        nextOracleDate = getNextRateChangeAtTime(block.timestamp);
 
         for ( uint i = 0; i < regions.length; i++ ) {
             currentRates[regions[i]] = current;
-            currentOracleDate = currentDate;
-
             nextRates[regions[i]] = next;
-            nextOracleDate = nextDate;
         }
         
     }
