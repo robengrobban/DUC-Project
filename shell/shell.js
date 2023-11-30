@@ -44,9 +44,9 @@ if (false) {
     console.log("Registring EV...");
     await car.register();
     console.log("Registring CPO 1...");
-    await operator.register();
+    await operator.register(false);
     console.log("Registring CPO 2...");
-    await operator2.register();
+    await operator2.register(false);
     console.log("Registring CS...");
     await operator.registerCS(station.account.address, station.powerDischarge);
 
@@ -155,7 +155,7 @@ if (false) {
 
     // Request charging
     console.log("EV requests charging...");
-    await car.requestCharging(1000, station.account.address, operator2.account.address, car.getTime() + 30);
+    await car.requestCharging(1000, station.account.address, operator.account.address, car.getTime() + 30);
 }
 if (false) {
     // Listenings

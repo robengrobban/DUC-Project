@@ -31,10 +31,12 @@ contract Oracle is Structure, IOracle {
     */
 
     mapping(bytes3 => uint[RATE_SLOTS]) currentRates;
-    uint currentRatesDate;
+    uint currentOracleDate;
 
     mapping(bytes3 => uint[RATE_SLOTS]) nextRates;
-    uint nextRatesDate;
+    uint nextOracleDate;
+
+    uint lastAutomaticRateRequest;
 
     /*
     * EVENTS
@@ -47,32 +49,41 @@ contract Oracle is Structure, IOracle {
     */
 
     function setRates(bytes3[] calldata regions, uint[RATE_SLOTS] calldata current, uint[RATE_SLOTS] calldata next) public {
+        // TODO ? Maybe havbe the current and next rate have timestamps with them, for when they are
+        // suppose to start, and that way, we can verify that they are indeed correct (in the future)
 
         uint currentDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
         uint nextDate = getNextRateChangeAtTime(block.timestamp);
 
         for ( uint i = 0; i < regions.length; i++ ) {
             currentRates[regions[i]] = current;
-            currentRatesDate = currentDate;
+            currentOracleDate = currentDate;
 
             nextRates[regions[i]] = next;
-            nextRatesDate = nextDate;
+            nextOracleDate = nextDate;
         }
         
     }
 
     function automaticRate(Rate memory rate) public returns (Rate memory) {
         uint currentRateDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
+        transitionRate(rate.region, currentRateDate);
 
+        /* Oracle logic version 1
         uint rateDate = rate.startDate != 0
                                 ? rate.startDate
                                 : currentRateDate;
+        */
+        uint rateDate = rate.startDate != 0
+                                ? rate.startDate
+                                : currentOracleDate;
 
-        transitionRate(rate.region, currentRateDate);
+        if ( lastAutomaticRateRequest + RATE_SLOT_PERIOD < block.timestamp ) {
+            emit RateRequest();
+            lastAutomaticRateRequest = block.timestamp;
+        }
 
-        emit RateRequest();
-
-        return updateRate(rate, currentRates[rate.region], nextRates[rate.region], rateDate, currentRatesDate, nextRatesDate);
+        return updateRate(rate, currentRates[rate.region], nextRates[rate.region], rateDate, currentOracleDate, nextOracleDate);
     }
 
     function requestRate() public {
@@ -84,9 +95,9 @@ contract Oracle is Structure, IOracle {
     */
 
     function transitionRate(bytes3 region, uint currentDate) private {
-        if ( nextRatesDate != 0 && currentDate >= nextRatesDate ) {
-            currentRatesDate = nextRatesDate;
-            nextRatesDate = 0;
+        if ( nextOracleDate != 0 && currentDate >= nextOracleDate ) {
+            currentOracleDate = nextOracleDate;
+            nextOracleDate = 0;
             
             currentRates[region] = nextRates[region];
             uint[RATE_SLOTS] memory empty;
@@ -100,7 +111,7 @@ contract Oracle is Structure, IOracle {
             revert("809 (a)");
         }
         if ( currentRateDate < rateDate ) {
-            revert("809 (b)");
+            revert("809 (b)"); 
         }
 
         // Init state

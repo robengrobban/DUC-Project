@@ -18,14 +18,13 @@ class CPO extends Entity {
             secret, // secret
             'ws://192.168.174.129:8546' // network
         )
-        
     }
 
-    async register() {
+    async register(automaticRates) {
         return await this.contract.methods.registerCPO(
             this.account.address,
             this.web3.utils.fromAscii(this.name),
-            false
+            automaticRates
         ).send();
     }
 
