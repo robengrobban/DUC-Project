@@ -74,8 +74,6 @@ contract Oracle is Structure, IOracle {
         uint rateDate = rate.startDate != 0
                                 ? rate.startDate
                                 : currentRateDate;
-        
-        uint nextRateDate = getNextRateChangeAtTime(block.timestamp);
     
         bool validRegion = false;
         for (uint i = 0; i < knownRegions.length; i++) {
@@ -88,47 +86,10 @@ contract Oracle is Structure, IOracle {
 
         transitionRate(currentRateDate);
 
-        // REVERT STATES
-        if ( currentRates[rate.region][0] == 0 || currentRatesDate == 0 ) {
-            revert("809");
-        }
-        if ( (nextRatesDate != 0 && nextRatesDate < rateDate) || currentRatesDate < rateDate ) {
-            revert("809");
-        }
+        emit RateRequest();
 
-        // Init state
-        if ( rate.current[0] == 0 ) {
-            rate.current = currentRates[rate.region];
-            rate.startDate = currentRatesDate;
-            rate.currentRoaming = rate.automaticNextRoaming;
-
-            rateDate = currentRatesDate;
-        }
-
-        // Adjust current rate?
-        if ( rateDate < currentRatesDate ) {
-            rate.current = currentRates[rate.region];
-            rate.startDate = currentRatesDate;
-            rate.currentRoaming = rate.automaticNextRoaming == 0
-                                    ? rate.currentRoaming
-                                    : rate.automaticNextRoaming;
-            
-            rateDate = currentRatesDate;
-        }
-
-        // Add next rate?
-        if ( rate.next[0] == 0 && nextRates[rate.region][0] != 0 ) {
-            rate.next = nextRates[rate.region];
-            rate.changeDate = nextRateDate;
-            rate.nextRoaming = rate.automaticNextRoaming == 0
-                                ? rate.currentRoaming
-                                : rate.automaticNextRoaming;
-        }
-
-        emit RateRequest();        
-        return rate;
+        return updateRate(rate, currentRates[rate.region], nextRates[rate.region], rateDate, currentRatesDate, nextRatesDate);
     }
-
 
     /*
     * PRIVATE FUNCTIONS
@@ -145,6 +106,47 @@ contract Oracle is Structure, IOracle {
                 nextRates[knownRegions[i]] = empty;
             }
         }
+    }
+
+    function updateRate(Rate memory rate, uint[RATE_SLOTS] memory currentRate, uint[RATE_SLOTS] memory nextRate, uint rateDate, uint currentRateDate, uint nextRateDate) private pure returns (Rate memory) {
+        // REVERT STATES
+        if ( currentRate[0] == 0 || currentRateDate == 0 ) {
+            revert("809");
+        }
+        if ( currentRateDate < rateDate ) {
+            revert("809");
+        }
+
+        // Init state
+        if ( rate.current[0] == 0 ) {
+            rate.current = currentRate;
+            rate.startDate = currentRateDate;
+            rate.currentRoaming = rate.automaticNextRoaming;
+
+            rateDate = currentRateDate;
+        }
+
+        // Adjust current rate?
+        if ( rateDate < currentRateDate ) {
+            rate.current = currentRate;
+            rate.startDate = currentRateDate;
+            rate.currentRoaming = rate.automaticNextRoaming == 0
+                                    ? rate.currentRoaming
+                                    : rate.automaticNextRoaming;
+            
+            rateDate = currentRateDate;
+        }
+
+        // Add next rate?
+        if ( rate.next[0] == 0 && nextRate[0] != 0 ) {
+            rate.next = nextRate;
+            rate.changeDate = nextRateDate;
+            rate.nextRoaming = rate.automaticNextRoaming == 0
+                                ? rate.currentRoaming
+                                : rate.automaticNextRoaming;
+        }
+
+        return rate;
     }
 
     /*
