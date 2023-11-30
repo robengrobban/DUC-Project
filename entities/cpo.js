@@ -83,7 +83,7 @@ class CPO extends Entity {
     }
 
     generateRoaming() {
-        return this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.0002)*this.precision)+0.5 ));
+        return this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.0001)*this.precision)+0.5 ));
     }
 
     pricePerWattHoursToWattSeconds(price) {

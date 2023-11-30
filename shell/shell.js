@@ -145,7 +145,7 @@ if (false) {
     station.listen('ChargingRequested').on('data', async log => {
         console.log("CS charging request ", log.returnValues);
         // Start charging
-        if (false) {
+        if (true) {
             let schemeId = log.returnValues.scheme.id;
             let EVaddress = log.returnValues.ev;
             console.log("CS is responding to charging request ", schemeId);
@@ -155,7 +155,7 @@ if (false) {
 
     // Request charging
     console.log("EV requests charging...");
-    await car.requestCharging(500, station.account.address, operator.account.address, car.getTime() + 30);
+    await car.requestCharging(1000, station.account.address, operator2.account.address, car.getTime() + 30);
 }
 if (false) {
     // Listenings
