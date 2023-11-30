@@ -47,7 +47,7 @@ contract Rate is Structure, IRate {
         Rate memory rate = contractInstance.getRate(CPOaddress, region);
 
         // Transfer current rates if it is needed
-        rate = transferToNewRates(rate);
+        rate = transferToNewRates(rate, cpo.automaticRates);
 
         // There are no current rates
         if ( rate.current[0] == 0 ) {
@@ -84,24 +84,25 @@ contract Rate is Structure, IRate {
         require(cpo.automaticRates, "808");
 
         Rate memory rate = contractInstance.getRate(CPOaddress, region);
+        rate.region = region;
 
         // Transfer current rates if it is needed
-        rate = transferToNewRates(rate);
         rate.automaticNextRoaming = newRoaming;
+        rate = transferToNewRates(rate, cpo.automaticRates);
 
         return rate;
     }
 
     function updateAutomaticRates() public {
         require(msg.sender == contractAddress, "102");
-        //oracleInstance.updateRate(null)
+        oracleInstance.requestRate();
     }
 
-    function transferToNewRates(Rate memory rate) public returns (Rate memory) {
+    function transferToNewRates(Rate memory rate, bool automatic) public returns (Rate memory) {
         if ( rate.changeDate != 0 && block.timestamp >= rate.changeDate ) {
             rate = transitionRate(rate);
         }
-        if ( false ) {
+        if ( automatic ) {
             rate = oracleInstance.automaticRate(rate);
         }
         return rate;

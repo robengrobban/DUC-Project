@@ -6,7 +6,7 @@ import './Structure.sol';
 
 interface IOracle is Structure {
 
-    function addValidRegion(bytes3 region) external;
     function automaticRate(Rate memory) external returns (Rate memory);
+    function requestRate() external;
 
 }

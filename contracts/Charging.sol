@@ -49,15 +49,15 @@ contract Charging is Structure, ICharging {
                 
         require(contractInstance.isDealActive(EVaddress, CPOaddress), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
-        require(contractInstance.isRatesAvailable(CPOaddress, cs.region), "804");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
 
         if ( CPOaddress != cs.cpo ) {
             // Roaming applies
-            require(contractInstance.isRoamingAvailable(cs.cpo, cs.region), "712");
             contractInstance.transferToNewRates(cs.cpo, cs.region); // Update roaming rates if necessary
+            require(contractInstance.isRoamingAvailable(cs.cpo, cs.region), "712");
         }
         contractInstance.transferToNewRates(CPOaddress, cs.region);
+        require(contractInstance.isRatesAvailable(CPOaddress, cs.region), "804");
 
         // Calculate ChargingScheme
         ChargingScheme memory scheme = getChargingScheme(EVaddress, CSaddress, CPOaddress, startDate, startCharge, targetCharge);
@@ -184,7 +184,6 @@ contract Charging is Structure, ICharging {
                 
         require(contractInstance.isDealActive(EVaddress, CPOaddress), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
-        require(contractInstance.isRatesAvailable(CPOaddress, T.cs.region), "804");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
         require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
         require(endDate != 0 && endDate > block.timestamp, "711");
@@ -192,13 +191,14 @@ contract Charging is Structure, ICharging {
         // Check roaming
         Chargelett memory C;
         if ( CPOaddress != T.cs.cpo ) {
-            require(contractInstance.isRoamingAvailable(T.cs.cpo, T.cs.region), "712");
             contractInstance.transferToNewRates(T.cs.cpo, T.cs.region); // Update roaming rates if necessary
+            require(contractInstance.isRoamingAvailable(T.cs.cpo, T.cs.region), "712");
             C.roaming = contractInstance.getRate(T.cs.cpo, T.cs.region);
         }
 
         // Transfer to new rates
         contractInstance.transferToNewRates(CPOaddress, T.cs.region);
+        require(contractInstance.isRatesAvailable(CPOaddress, T.cs.region), "804");
 
         C.deal = contractInstance.getDeal(EVaddress, CPOaddress);
         C.rate = contractInstance.getRate(CPOaddress, T.cs.region);

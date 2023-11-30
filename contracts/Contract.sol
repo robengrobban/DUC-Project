@@ -134,7 +134,7 @@ contract Contract is Structure, IContract {
         return rates[CPOaddress][region];
     }
     function transferToNewRates(address CPOaddress, bytes3 region) public {
-        rates[CPOaddress][region] = rateInstance.transferToNewRates(rates[CPOaddress][region]);
+        rates[CPOaddress][region] = rateInstance.transferToNewRates(rates[CPOaddress][region], CPOs[CPOaddress].automaticRates);
     }
     function updateAutomaticRates() public {
         rateInstance.updateAutomaticRates();

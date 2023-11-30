@@ -25,7 +25,7 @@ class CPO extends Entity {
         return await this.contract.methods.registerCPO(
             this.account.address,
             this.web3.utils.fromAscii(this.name),
-            false
+            true
         ).send();
     }
 
@@ -57,6 +57,16 @@ class CPO extends Entity {
         ).send();
     }
 
+    async registerNextRoaming(roaming) {
+        return await this.contract.methods.nextRoaming(
+            this.account.address, 
+            this.web3.utils.fromAscii("SE1"),
+            roaming, 
+            this.precision
+        ).send();
+    }
+
+
     generateRates() {
         let rates = [];
         for (let i = 0; i < this.rateSlots; i++) {
@@ -73,7 +83,7 @@ class CPO extends Entity {
     }
 
     generateRoaming() {
-        return this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.0001)*this.precision)+0.5 ));
+        return this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.0002)*this.precision)+0.5 ));
     }
 
     pricePerWattHoursToWattSeconds(price) {

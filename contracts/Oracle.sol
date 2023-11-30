@@ -17,11 +17,6 @@ contract Oracle is Structure, IOracle {
 
     constructor () {
         owner = msg.sender;
-
-        knownRegions.push("SE1");
-        knownRegions.push("SE2");
-        knownRegions.push("SE3");
-        knownRegions.push("SE4");
     }
 
     function set(address _rateAddress) public {
@@ -41,8 +36,6 @@ contract Oracle is Structure, IOracle {
     mapping(bytes3 => uint[RATE_SLOTS]) nextRates;
     uint nextRatesDate;
 
-    bytes3[] knownRegions;
-
     /*
     * EVENTS
     */
@@ -53,19 +46,17 @@ contract Oracle is Structure, IOracle {
     * PUBLIC FUNCTIONS
     */
 
-    function addValidRegion(bytes3 region) external {
-        require(msg.sender == owner, "101");
+    function setRates(bytes3 region, uint[RATE_SLOTS] calldata current, uint[RATE_SLOTS] calldata next) public {
 
-        bool regionExists = false;
-        for (uint i = 0; i < knownRegions.length; i++) {
-            if ( knownRegions[i] == region ) {
-                regionExists = true;
-                break;
-            }
-        }
-        require(!regionExists, "1001");
+        uint currentDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
+        uint nextDate = getNextRateChangeAtTime(block.timestamp);
 
-        knownRegions.push(region);
+        currentRates[region] = current;
+        currentRatesDate = currentDate;
+
+        nextRates[region] = next;
+        nextRatesDate = nextDate;
+
     }
 
     function automaticRate(Rate memory rate) public returns (Rate memory) {
@@ -74,47 +65,40 @@ contract Oracle is Structure, IOracle {
         uint rateDate = rate.startDate != 0
                                 ? rate.startDate
                                 : currentRateDate;
-    
-        bool validRegion = false;
-        for (uint i = 0; i < knownRegions.length; i++) {
-            if ( knownRegions[i] == rate.region ) {
-                validRegion = true;
-                break;
-            }
-        }
-        require(validRegion, "810");
 
-        transitionRate(currentRateDate);
+        transitionRate(rate.region, currentRateDate);
 
         emit RateRequest();
 
         return updateRate(rate, currentRates[rate.region], nextRates[rate.region], rateDate, currentRatesDate, nextRatesDate);
     }
 
+    function requestRate() public {
+        emit RateRequest();
+    }
+
     /*
     * PRIVATE FUNCTIONS
     */
 
-    function transitionRate(uint currentDate) private {
+    function transitionRate(bytes3 region, uint currentDate) private {
         if ( nextRatesDate != 0 && currentDate >= nextRatesDate ) {
             currentRatesDate = nextRatesDate;
             nextRatesDate = 0;
             
-            for (uint i = 0; i < knownRegions.length; i++) {
-                currentRates[knownRegions[i]] = nextRates[knownRegions[i]];
-                uint[RATE_SLOTS] memory empty;
-                nextRates[knownRegions[i]] = empty;
-            }
+            currentRates[region] = nextRates[region];
+            uint[RATE_SLOTS] memory empty;
+            nextRates[region] = empty;
         }
     }
 
     function updateRate(Rate memory rate, uint[RATE_SLOTS] memory currentRate, uint[RATE_SLOTS] memory nextRate, uint rateDate, uint currentRateDate, uint nextRateDate) private pure returns (Rate memory) {
         // REVERT STATES
         if ( currentRate[0] == 0 ) {
-            revert("809");
+            revert("809 (1)");
         }
         if ( currentRateDate < rateDate ) {
-            revert("809");
+            revert("809 (2)");
         }
 
         // Init state
@@ -147,6 +131,15 @@ contract Oracle is Structure, IOracle {
         }
 
         return rate;
+    }
+
+    function existsRegion(bytes3 region, bytes3[] memory list) private pure returns (bool) {
+        for (uint i = 0; i < list.length; i++) {
+            if ( list[i] == region ) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /*

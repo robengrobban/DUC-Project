@@ -12,6 +12,14 @@ await station.connectContract();
 await operator.connectContract();
 await operator2.connectContract();
 
+car.listen('Payment').on('data', log => {
+    console.log("Payment: ", log.returnValues);
+});
+
+console.log("DEBUG RATING: ", await operator.getRate(operator.account.address, "SE1"));
+console.log("DEBUG RATING: ", await operator2.getRate(operator2.account.address, "SE1"));
+
+
 if (false) {
     console.log("DEBUG EV: ", await car.getEV());
     console.log("DEBUG CPO: ", await operator.getCPO());
@@ -39,8 +47,10 @@ if (false) {
 
     console.log("Registring EV...");
     await car.register();
-    console.log("Registring CPO...");
+    console.log("Registring CPO 1...");
     await operator.register();
+    console.log("Registring CPO 2...");
+    await operator2.register();
     console.log("Registring CS...");
     await operator.registerCS(station.account.address, station.powerDischarge);
 
@@ -113,13 +123,24 @@ if (false) {
     await operator.registerNewRates(rates, roaming);
 }
 if (false) {
+    operator.listen('NewRates').on('data', log => {
+        console.log("New rates: ", log.returnValues);
+    });
+    console.log("Next roaming");
+    await operator.registerNextRoaming(operator.generateRoaming());
+}
+if (false) {
+    console.log("Prompring for new rates");
+    console.log(await car.contract.methods.updateAutomaticRates().send());
+}
+if (false) {
     // Calculate charging price
     //console.log(await car.estimateChargingPrice(station.account.address));
     console.log(await car.getChargingScheme(station.account.address, operator.account.address));
 }
 if (false) {
     // Listenings
-    car.listen('ChargingAcknowledged').on('data', log => {
+    car.listen('ChargingAcknowledged').on('data', async log => {
         console.log("EV got start charging event ", log.returnValues);
     });
     station.listen('ChargingAcknowledged').on('data', log => {
@@ -128,7 +149,7 @@ if (false) {
     station.listen('ChargingRequested').on('data', async log => {
         console.log("CS charging request ", log.returnValues);
         // Start charging
-        if (true) {
+        if (false) {
             let schemeId = log.returnValues.scheme.id;
             let EVaddress = log.returnValues.ev;
             console.log("CS is responding to charging request ", schemeId);

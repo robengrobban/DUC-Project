@@ -51,6 +51,19 @@ async function connect(name, args) {
         args
     ).send();
 }
+async function connect2(name, arg1, arg2) {
+    console.log("Connecting...", name, "with", arg1, arg2)
+    const abi = JSON.parse(await fs.readFile("contracts/abi/"+name+".abi", "utf-8"));
+    const contract_address = await fs.readFile("contracts/address/"+name+".address", "utf-8");
+
+    const contract = new web3.eth.Contract(abi, contract_address);
+    contract.defaultAccount = account.address;
+
+    return await contract.methods.set(
+        arg1,
+        arg2
+    ).send();
+}
 
 async function connectMulti(name, ad1, ad2, ab3, ab4, ab5) {
     console.log("Connecting...", name, "with", ad1, ad2, ab3, ab4, ab5)
@@ -73,11 +86,14 @@ const contract_address = await read("Contract");
 const entity_address = await read("Entity");
 const deal_address = await read("Deal");
 const connection_address = await read("Connection");
-const rate_address = await read("Rate");
-const charging_address = await deploy("Charging");
+const rate_address = await deploy("Rate");
+const charging_address = await read("Charging");
+const oracle_address = await read("Oracle");
 
 await connectMulti("Contract", entity_address, deal_address, connection_address, rate_address, charging_address);
-await connect("Charging", contract_address);
+//await connect("Charging", contract_address);
+//await connect("Oracle", rate_address);
+await connect2("Rate", contract_address, oracle_address)
 
 console.log("Done");
 process.exit();
