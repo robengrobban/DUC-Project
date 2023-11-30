@@ -63,6 +63,11 @@
  - 806 : Cannot set rates, they are automatically configured
  - 807 : Current and next rate already exists, cannot change rate
  - 808 : Next roaming can only be set if automatic rates are configred, they are otherwise set using setRates()
+ - 809 : Rates need to be fetched, wait for automatic rate update
+ - 810 : Region is not valid for automatic rates
 
 900 (Deposits)
  - 901 : Total deposit is incufficient
+
+1000 (Oracle)
+ - 1001 : Valid region does already exists

@@ -136,6 +136,9 @@ contract Contract is Structure, IContract {
     function transferToNewRates(address CPOaddress, bytes3 region) public {
         rates[CPOaddress][region] = rateInstance.transferToNewRates(rates[CPOaddress][region]);
     }
+    function updateAutomaticRates() public {
+        rateInstance.updateAutomaticRates();
+    }
 
     function isCharging(address EVaddress, address CSaddress) public view returns (bool) {
         ChargingScheme memory scheme = chargingSchemes[EVaddress][CSaddress];

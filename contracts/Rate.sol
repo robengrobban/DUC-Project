@@ -5,6 +5,7 @@ pragma solidity ^0.8.23;
 import './Structure.sol';
 import './IRate.sol';
 import './IContract.sol';
+import './IOracle.sol';
 
 contract Rate is Structure, IRate {
 
@@ -14,15 +15,17 @@ contract Rate is Structure, IRate {
     address owner;
     IContract contractInstance;
     address contractAddress;
+    IOracle oracleInstance;
 
     constructor () {
         owner = msg.sender;
     }
 
-    function set(address _contractAddress) public {
+    function set(address _contractAddress, address oracleAddress) public {
         require(msg.sender == owner, "101");
 
         contractInstance = IContract(_contractAddress);
+        oracleInstance = IOracle(oracleAddress);
         contractAddress = _contractAddress;
     }
 
@@ -30,7 +33,7 @@ contract Rate is Structure, IRate {
     * PUBLIC FUNCTIONS
     */
 
-    function setRates(address CPOaddress, bytes3 region, uint[RATE_SLOTS] calldata newRates, uint newRoaming, uint ratePrecision) public view returns (Rate memory) {
+    function setRates(address CPOaddress, bytes3 region, uint[RATE_SLOTS] calldata newRates, uint newRoaming, uint ratePrecision) public returns (Rate memory) {
         require(msg.sender == contractAddress, "102");
         require(tx.origin == CPOaddress, "202");
         require(contractInstance.isCPO(CPOaddress), "203");
@@ -49,7 +52,7 @@ contract Rate is Structure, IRate {
         // There are no current rates
         if ( rate.current[0] == 0 ) {
             rate.region = region;
-            rate.startDate = block.timestamp;
+            rate.startDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
             rate.current = newRates;
             rate.currentRoaming = newRoaming;
             rate.precision = ratePrecision;
@@ -61,7 +64,7 @@ contract Rate is Structure, IRate {
             }
             rate.next = newRates;
             rate.nextRoaming = newRoaming;
-            rate.changeDate = getNextRateChange();
+            rate.changeDate = getNextRateChangeAtTime(block.timestamp);
         }
         else {
             revert("807");
@@ -70,7 +73,7 @@ contract Rate is Structure, IRate {
         return rate;
     }
 
-    function nextRoaming(address CPOaddress, bytes3 region, uint newRoaming, uint roaminPrecision) public view returns (Rate memory) {
+    function nextRoaming(address CPOaddress, bytes3 region, uint newRoaming, uint roaminPrecision) public returns (Rate memory) {
         require(msg.sender == contractAddress, "102");  
         require(tx.origin == CPOaddress, "202");
         require(contractInstance.isCPO(CPOaddress), "203");
@@ -89,16 +92,19 @@ contract Rate is Structure, IRate {
         return rate;
     }
 
-    function transferToNewRates(Rate memory rate) public view returns (Rate memory) {
-        // TODO : Probably emit event if automatic rates apply
-        if ( rate.changeDate != 0 && block.timestamp >= rate.changeDate ) {
-            return transitionRate(rate);
-        }
-        return rate;
+    function updateAutomaticRates() public {
+        require(msg.sender == contractAddress, "102");
+        //oracleInstance.updateRate(null)
     }
 
-    function getNextRateChange() public view returns (uint) {
-        return getNextRateChangeAtTime(block.timestamp);
+    function transferToNewRates(Rate memory rate) public returns (Rate memory) {
+        if ( rate.changeDate != 0 && block.timestamp >= rate.changeDate ) {
+            rate = transitionRate(rate);
+        }
+        if ( false ) {
+            rate = oracleInstance.automaticRate(rate);
+        }
+        return rate;
     }
 
     /*

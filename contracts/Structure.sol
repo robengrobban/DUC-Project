@@ -5,7 +5,7 @@ pragma solidity ^0.8.23;
 uint constant RATE_SLOTS = 60;                  // How many rate slots there are, should be compatible with how often the rate changes.
 
 uint constant RATE_CHANGE_IN_SECONDS = 3600;    // What is the factor of rate changes in seconds? 
-                                                // Used to calculate when a new rate starts, see function getNextRateChange()
+                                                // Used to calculate when a new rate starts, see function getNextRateChangeAtTime()
                                                 // 60 = rate change every minute
                                                 // 3600 = rate change every hour (60 * 60)
                                                 // 86400 = rate change every day (60 * 60 * 24)

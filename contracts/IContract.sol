@@ -24,6 +24,7 @@ interface IContract is Structure {
 
     function getRate(address, bytes3) external view returns (Rate memory);
     function transferToNewRates(address, bytes3) external;
+    function updateAutomaticRates() external;
 
     function isCharging(address, address) external view returns (bool);
     function getCharging(address, address) external view returns (ChargingScheme memory);
