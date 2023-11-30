@@ -179,7 +179,7 @@ if (false) {
             console.log("EV accept smart charging schedule... ", log.returnValues.scheme.id);
             let schemeId = log.returnValues.scheme.id;
             let CSaddress = log.returnValues.cs;
-            await car.acceptSmartCharging(500, CSaddress, schemeId);
+            await car.acceptSmartCharging(1000, CSaddress, schemeId);
         }
     });
 
