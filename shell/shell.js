@@ -158,7 +158,7 @@ if (false) {
     car.listen("SmartChargingScheduled").on('data', async log => {
         console.log("EV new smart charging schedule...", log.returnValues);
         // Accept
-        if (false) {
+        if (true) {
             console.log("EV accept smart charging schedule... ", log.returnValues.scheme.id);
             let schemeId = log.returnValues.scheme.id;
             let CSaddress = log.returnValues.cs;
@@ -166,7 +166,7 @@ if (false) {
         }
     });
 
-    if (false) {
+    if (true) {
         car.listen('ChargingAcknowledged').on('data', log => {
             console.log("EV got start charging event ", log.returnValues);
         });

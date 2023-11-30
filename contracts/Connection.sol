@@ -56,11 +56,11 @@ contract Connection is Structure, IConnection {
             }
 
             // Check that nonce is correct
-            require(connection.nonce != nonce, "606");
+            if ( connection.nonce != nonce ) {
+                revert("606");
+            }
 
             // Accept connection as EV
-            connection.EV = EVaddress;
-            connection.CS = CSaddress;
             connection.EVconnected = true;
             if ( connection.EVconnected && connection.CSconnected ) {
                 connection.establishedDate = block.timestamp;
@@ -78,11 +78,11 @@ contract Connection is Structure, IConnection {
             }
 
             // Check that nonce is correct
-            require(connection.nonce != nonce, "606");
+            if ( connection.nonce != nonce ) {
+                revert("606");
+            }
 
             // Accept connection as CS
-            connection.EV = EVaddress;
-            connection.CS = CSaddress;
             connection.CSconnected = true;
             if ( connection.EVconnected && connection.CSconnected ) {
                 connection.establishedDate = block.timestamp;

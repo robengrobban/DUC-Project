@@ -66,8 +66,6 @@ interface Structure {
 
     struct Connection {
         uint nonce;
-        address EV;
-        address CS;
         bool EVconnected;
         bool CSconnected;
         uint establishedDate;

@@ -24,7 +24,8 @@ class CPO extends Entity {
     async register() {
         return await this.contract.methods.registerCPO(
             this.account.address,
-            this.web3.utils.fromAscii(this.name)
+            this.web3.utils.fromAscii(this.name),
+            false
         ).send();
     }
 
