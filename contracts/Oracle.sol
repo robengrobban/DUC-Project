@@ -95,10 +95,10 @@ contract Oracle is Structure, IOracle {
     function updateRate(Rate memory rate, uint[RATE_SLOTS] memory currentRate, uint[RATE_SLOTS] memory nextRate, uint rateDate, uint currentRateDate, uint nextRateDate) private pure returns (Rate memory) {
         // REVERT STATES
         if ( currentRate[0] == 0 ) {
-            revert("809 (1)");
+            revert("809 (a)");
         }
         if ( currentRateDate < rateDate ) {
-            revert("809 (2)");
+            revert("809 (b)");
         }
 
         // Init state
