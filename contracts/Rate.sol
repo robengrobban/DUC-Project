@@ -113,9 +113,9 @@ contract Rate is Structure, IRate {
     */
 
     function transitionRate(Rate memory rate) private pure returns (Rate memory) {
-        rate.historical = rate.current;
-        rate.historicalRoaming = rate.currentRoaming;
-        rate.historicalDate = rate.startDate;
+        //rate.historical = rate.current;
+        //rate.historicalRoaming = rate.currentRoaming;
+        //rate.historicalDate = rate.startDate;
 
         rate.current = rate.next;
         rate.currentRoaming = rate.nextRoaming;

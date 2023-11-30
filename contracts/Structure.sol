@@ -83,9 +83,9 @@ interface Structure {
         uint nextRoaming; // The next roaming rates
         uint changeDate; // The date when the new rates are expected to change
 
-        uint[RATE_SLOTS] historical; // What the last rate was
-        uint historicalRoaming; // What the roaming last was
-        uint historicalDate; // When the rates in historical started
+        //uint[RATE_SLOTS] historical; // What the last rate was
+        //uint historicalRoaming; // What the roaming last was
+        //uint historicalDate; // When the rates in historical started
 
         uint automaticNextRoaming; // The next roaming when the next automatic update happens.
     }
