@@ -55,7 +55,6 @@ contract Rate is Structure, IRate {
             rate.startDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
             rate.current = newRates;
             rate.currentRoaming = newRoaming;
-            rate.nextRoaming = newRoaming;
             rate.precision = ratePrecision;
         }
         // There are existing rates.
