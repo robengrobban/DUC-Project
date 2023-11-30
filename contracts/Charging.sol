@@ -164,7 +164,7 @@ contract Charging is Structure, ICharging {
         uint chargeTime = calculateChargeTimeInSeconds((targetCharge - startCharge), T.cs.powerDischarge, T.ev.batteryEfficiency);
 
         // Calculate maximum possible charging time
-        uint maxTime = possibleChargingTime(C.deal, C.rate, startDate);
+        uint maxTime = possibleChargingTime(C, startDate);
 
         scheme.chargeTime = chargeTime;
         scheme.maxTime = maxTime;
@@ -369,16 +369,16 @@ contract Charging is Structure, ICharging {
         return (priceToWei(scheme.finalPrice), priceToWei(scheme.finalRoamingPrice));
     }
 
-    function possibleChargingTime(Deal memory deal, Rate memory rate, uint startDate) private pure returns (uint) {
-        uint maxTime = deal.endDate - startDate;
-        if ( rate.changeDate == 0 ) {
+    function possibleChargingTime(Chargelett memory C, uint startDate) private pure returns (uint) {
+        uint maxTime = C.deal.endDate - startDate;
+        if ( C.rate.changeDate == 0 || (C.roaming.startDate != 0 && C.roaming.changeDate == 0) ) {
             uint currentRateEdge = getNextRateChangeAtTime(startDate) - startDate;
             if ( maxTime > currentRateEdge ) {
                 return currentRateEdge;
             }
         }
         else {
-            uint nextRateEdge = getNextRateChangeAtTime(rate.changeDate) - startDate;
+            uint nextRateEdge = getNextRateChangeAtTime(C.rate.changeDate) - startDate;
             if ( maxTime > nextRateEdge ) {
                 return nextRateEdge;
             }
@@ -398,7 +398,7 @@ contract Charging is Structure, ICharging {
         uint chargeWindow = endDate - startDate;
 
         // The max time left for charging according to deal and rate
-        uint maxTime = possibleChargingTime(C.deal, C.rate, startDate);
+        uint maxTime = possibleChargingTime(C, startDate);
 
         // Charge window needs to be within bounds of maximum possible charging time
         chargeWindow = chargeWindow < maxTime

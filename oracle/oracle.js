@@ -20,12 +20,15 @@ contract.events.RateRequest({
     console.log("New rate request!!!");
 
     const region = ["SE1", "SE2", "SE3", "SE4"];
+    const regionToSend = [];
 
     for ( let i = 0; i < region.length; i++ ) {
         
-        await contract.methods.setRates(web3.utils.fromAscii(region[i]), generateRates(), generateRates()).send();
+        regionToSend[i] = web3.utils.fromAscii(region[i]);
 
     }
+
+    await contract.methods.setRates(regionToSend, generateRates(), generateRates()).send();
 
     console.log("New rates!!!");
 

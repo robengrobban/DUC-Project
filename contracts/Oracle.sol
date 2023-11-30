@@ -46,17 +46,19 @@ contract Oracle is Structure, IOracle {
     * PUBLIC FUNCTIONS
     */
 
-    function setRates(bytes3 region, uint[RATE_SLOTS] calldata current, uint[RATE_SLOTS] calldata next) public {
+    function setRates(bytes3[] calldata regions, uint[RATE_SLOTS] calldata current, uint[RATE_SLOTS] calldata next) public {
 
         uint currentDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
         uint nextDate = getNextRateChangeAtTime(block.timestamp);
 
-        currentRates[region] = current;
-        currentRatesDate = currentDate;
+        for ( uint i = 0; i < regions.length; i++ ) {
+            currentRates[regions[i]] = current;
+            currentRatesDate = currentDate;
 
-        nextRates[region] = next;
-        nextRatesDate = nextDate;
-
+            nextRates[regions[i]] = next;
+            nextRatesDate = nextDate;
+        }
+        
     }
 
     function automaticRate(Rate memory rate) public returns (Rate memory) {

@@ -132,7 +132,7 @@ if (false) {
 if (false) {
     // Calculate charging price
     //console.log(await car.estimateChargingPrice(station.account.address));
-    console.log(await car.getChargingScheme(station.account.address, operator.account.address));
+    console.log(await car.getChargingScheme(station.account.address, operator2.account.address));
 }
 if (false) {
     // Listenings
@@ -145,7 +145,7 @@ if (false) {
     station.listen('ChargingRequested').on('data', async log => {
         console.log("CS charging request ", log.returnValues);
         // Start charging
-        if (true) {
+        if (false) {
             let schemeId = log.returnValues.scheme.id;
             let EVaddress = log.returnValues.ev;
             console.log("CS is responding to charging request ", schemeId);
