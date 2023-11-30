@@ -53,7 +53,13 @@ contract Oracle is Structure, IOracle {
         // suppose to start, and that way, we can verify that they are indeed correct (in the future)
 
         currentOracleDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
-        nextOracleDate = getNextRateChangeAtTime(block.timestamp);
+        // If next is empty, nextOracleDate should not be registered
+        if ( next[0] != 0 ) {
+            nextOracleDate = getNextRateChangeAtTime(block.timestamp);
+        }
+        else {
+            nextOracleDate = 0;
+        }
 
         for ( uint i = 0; i < regions.length; i++ ) {
             currentRates[regions[i]] = current;
