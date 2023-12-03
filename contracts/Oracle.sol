@@ -31,10 +31,10 @@ contract Oracle is Structure, IOracle {
     */
 
     mapping(bytes3 => uint[RATE_SLOTS]) currentRates;
-    uint currentOracleDate;
+    mapping(bytes3 => uint) currentOracleDate;
 
     mapping(bytes3 => uint[RATE_SLOTS]) nextRates;
-    uint nextOracleDate;
+    mapping(bytes3 => uint) nextOracleDate;
 
     uint lastAutomaticRateRequest;
 
@@ -48,24 +48,29 @@ contract Oracle is Structure, IOracle {
     * PUBLIC FUNCTIONS
     */
 
-    function setRates(bytes3[] calldata regions, uint[RATE_SLOTS] calldata current, uint[RATE_SLOTS] calldata next) public {
-        // TODO ? Maybe havbe the current and next rate have timestamps with them, for when they are
-        // suppose to start, and that way, we can verify that they are indeed correct (in the future)
+    function setRates(uint fetchedDate, bytes3 region, uint[RATE_SLOTS] calldata current, uint[RATE_SLOTS] calldata next) public {
+        require(current.length == RATE_SLOTS && next.length == RATE_SLOTS, "1002");
+        require(fetchedDate != 0 && fetchedDate <= block.timestamp, "1003");
 
-        currentOracleDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
-        // If next is empty, nextOracleDate should not be registered
-        if ( next[0] != 0 ) {
-            nextOracleDate = getNextRateChangeAtTime(block.timestamp);
-        }
-        else {
-            nextOracleDate = 0;
+        // Make sure rates are within current period (that fetchedDate has the same start period as currentDate)
+        uint currentDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
+        require(getNextRateChangeAtTime(fetchedDate-RATE_CHANGE_IN_SECONDS) == currentDate, "1003");
+
+        // Advance rates if necessary   
+        transitionRate(region, currentDate);
+
+        // We have no oracle rates or Oracle rates are old
+        if ( currentOracleDate[region] == 0 || currentOracleDate[region] < currentDate ) {
+            currentOracleDate[region] = currentDate;
+            currentRates[region] = current;
         }
 
-        for ( uint i = 0; i < regions.length; i++ ) {
-            currentRates[regions[i]] = current;
-            nextRates[regions[i]] = next;
+        // Add next if next oracle date is empty and if next is not empty
+        if ( nextOracleDate[region] == 0 && next[0] != 0 ) {
+            nextOracleDate[region] = getNextRateChangeAtTime(block.timestamp);
+            nextRates[region] = next;
         }
-        
+
     }
 
     function automaticRate(Rate memory rate) public returns (Rate memory) {
@@ -79,18 +84,22 @@ contract Oracle is Structure, IOracle {
         */
         uint rateDate = rate.startDate != 0
                                 ? rate.startDate
-                                : currentOracleDate;
+                                : currentOracleDate[rate.region];
 
         if ( lastAutomaticRateRequest + RATE_SLOT_PERIOD < block.timestamp ) {
             emit RateRequest();
             lastAutomaticRateRequest = block.timestamp;
         }
 
-        return updateRate(rate, currentRates[rate.region], nextRates[rate.region], rateDate, currentOracleDate, nextOracleDate);
+        return updateRate(rate, currentRates[rate.region], nextRates[rate.region], rateDate, currentOracleDate[rate.region], nextOracleDate[rate.region]);
     }
 
     function requestRate() public {
         emit RateRequest();
+    }
+
+    function getOracleState(bytes3 region) public view returns (uint, uint, uint[RATE_SLOTS] memory, uint[RATE_SLOTS] memory) {
+        return (currentOracleDate[region], nextOracleDate[region], currentRates[region], nextRates[region]);
     }
 
     /*
@@ -98,9 +107,9 @@ contract Oracle is Structure, IOracle {
     */
 
     function transitionRate(bytes3 region, uint currentDate) private {
-        if ( nextOracleDate != 0 && currentDate >= nextOracleDate ) {
-            currentOracleDate = nextOracleDate;
-            nextOracleDate = 0;
+        if ( nextOracleDate[region] != 0 && currentDate >= nextOracleDate[region] ) {
+            currentOracleDate[region] = nextOracleDate[region];
+            nextOracleDate[region] = 0;
             
             currentRates[region] = nextRates[region];
             uint[RATE_SLOTS] memory empty;
@@ -147,15 +156,6 @@ contract Oracle is Structure, IOracle {
         }
 
         return rate;
-    }
-
-    function existsRegion(bytes3 region, bytes3[] memory list) private pure returns (bool) {
-        for (uint i = 0; i < list.length; i++) {
-            if ( list[i] == region ) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /*

@@ -13,24 +13,22 @@ const contract_address = await fs.readFile("contracts/address/Oracle.address", "
 const contract = new web3.eth.Contract(abi, contract_address);
 contract.defaultAccount = account.address;
 
+console.log(await contract.methods.getOracleState(web3.utils.fromAscii("SE1")).call());
+
 contract.events.RateRequest({
     fromBlock: 'latest'
 }).on('data', async log => {
 
-    console.log("New rate request!!!");
+    console.log("New rate request...");
 
     const region = ["SE1", "SE2", "SE3", "SE4"];
-    const regionToSend = [];
 
     for ( let i = 0; i < region.length; i++ ) {
-        
-        regionToSend[i] = web3.utils.fromAscii(region[i]);
-
+        console.log("Sending rates for", region[i], "...");
+        await contract.methods.setRates(getTime(), web3.utils.fromAscii(region[i]), generateRates(), generateRates2()).send();
     }
 
-    await contract.methods.setRates(regionToSend, generateRates(), generateRates()).send();
-
-    console.log("New rates!!!");
+    console.log("All new rates done...");
 
 });
 
@@ -67,4 +65,7 @@ function generateEmptyRates() {
 }
 function pricePerWattHoursToWattSeconds(price) {
     return price / 3600
+}
+function getTime() {
+    return Math.floor(Date.now() / 1000);
 }

@@ -16,6 +16,8 @@ car.listen('Payment').on('data', log => {
     console.log("Payment: ", log.returnValues);
 });
 
+console.log("DEBUG RATING: ", await operator.getRate(operator.account.address, "SE1"));
+
 if (false) {
     console.log("DEBUG EV: ", await car.getEV());
     console.log("DEBUG CPO: ", await operator.getCPO());
@@ -54,15 +56,17 @@ if (false) {
     console.log("CPO status: " + await operator.isRegistered() + " " + await operator.isCPO());
     console.log("CS status: " + await station.isRegistered() + " " + await station.isCS());
 
-    // Register rates
-    operator.listen('NewRates').on('data', log => {
-        console.log("New rates: ", log.returnValues);
-    });
+    if (true) {
+        // Register rates
+        operator.listen('NewRates').on('data', log => {
+            console.log("New rates: ", log.returnValues);
+        });
 
-    console.log("Registring new rates...");
-    let rates = operator.generateRates();
-    let roaming = operator.generateRoaming();
-    await operator.registerNewRates(rates, roaming);
+        console.log("Registring new rates...");
+        let rates = operator.generateRates();
+        let roaming = operator.generateRoaming();
+        await operator.registerNewRates(rates, roaming);
+    }
 
     // Propose deal
     operator.listen('DealProposed').on('data', async log => {
@@ -118,16 +122,18 @@ if (false) {
     let roaming = operator.generateRoaming();
     await operator.registerNewRates(rates, roaming);
 }
+if (true) {
+    // Prompt for automatic rates
+    console.log("Prompring for new rates");
+    console.log(await car.contract.methods.updateAutomaticRates().send());
+}
 if (false) {
+    // Prepare for automatic rates
     operator.listen('NewRates').on('data', log => {
         console.log("New rates: ", log.returnValues);
     });
     console.log("Next roaming");
     await operator.registerNextRoaming(operator.generateRoaming());
-}
-if (false) {
-    console.log("Prompring for new rates");
-    console.log(await car.contract.methods.updateAutomaticRates().send());
 }
 if (false) {
     // Calculate charging price

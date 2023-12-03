@@ -71,3 +71,5 @@
 
 1000 (Oracle)
  - 1001 : Valid region does already exists
+ - 1002 : Rate data is not correct length
+ - 1003 : Fetched date must be present, not be 0, and not be bigger than the processed date.
