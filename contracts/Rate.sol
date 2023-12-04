@@ -49,8 +49,8 @@ contract Rate is Structure, IRate {
         // Transfer current rates if it is needed
         rate = transferToNewRates(rate, cpo.automaticRates);
 
-        // There are no current rates
-        if ( rate.current[0] == 0 ) {
+        // There are no current rates OR the current rates are old
+        if ( rate.current[0] == 0 || rate.startDate < getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS)) {
             rate.region = region;
             rate.startDate = getNextRateChangeAtTime(block.timestamp-RATE_CHANGE_IN_SECONDS);
             rate.current = newRates;
