@@ -1,5 +1,6 @@
 import { Web3 } from 'web3';
 import { promises as fs } from 'fs';
+import { RateApi } from './RateApi.js';
 const network = "ws://192.168.174.129:8546";
 
 const web3 = new Web3(network);
@@ -22,10 +23,21 @@ contract.events.RateRequest({
     console.log("New rate request...");
 
     const region = ["SE1", "SE2", "SE3", "SE4"];
+    const api = new RateApi();
 
     for ( let i = 0; i < region.length; i++ ) {
-        console.log("Sending rates for", region[i], "...");
-        await contract.methods.setRates(getTime(), web3.utils.fromAscii(region[i]), generateRates(), generateRates2()).send();
+        console.log("Sending rates for...", region[i]);
+
+        api.setRegion(region[i]);
+        console.log("Calling...", api.build());
+        const currentRates = await api.rates(priceFromKilloToPrecision, 60);
+
+        api.moveDay(1);
+        console.log("Calling...", api.build());
+        const nextRates = await api.rates(priceFromKilloToPrecision, 60);
+        api.moveDay(-1);
+
+        await contract.methods.setRates(getTime(), web3.utils.fromAscii(region[i]), currentRates, nextRates).send();
     }
 
     console.log("All new rates done...");
@@ -65,6 +77,22 @@ function generateEmptyRates() {
 }
 function pricePerWattHoursToWattSeconds(price) {
     return price / 3600
+}
+function priceFromKillo(price) {
+    return price / 1000;
+}
+function priceToPrecision(price) {
+    price = pricePerWattHoursToWattSeconds(price);
+    price *= 1000000000;
+    price += 0.5;
+    return web3.utils.toBigInt(Math.floor(price));
+}
+function priceFromKilloToPrecision(price) {
+    price = priceFromKillo(price);
+    price = pricePerWattHoursToWattSeconds(price);
+    price *= 1000000000;
+    price += 0.5;
+    return web3.utils.toBigInt(Math.floor(price));
 }
 function getTime() {
     return Math.floor(Date.now() / 1000);
