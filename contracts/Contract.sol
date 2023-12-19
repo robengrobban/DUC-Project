@@ -166,8 +166,8 @@ contract Contract is Structure, IContract {
         CPOs[CPOaddress] = entityInstance.createCPO(CPOaddress, name, automaticRates);
         emit CPORegistered(CPOaddress);
     }
-    function registerCS(address CSaddress, address CPOaddress, bytes3 region, uint powerDischarge) public {
-        CSs[CSaddress] = entityInstance.createCS(CSaddress, CPOaddress, region, powerDischarge);
+    function registerCS(address CSaddress, address CPOaddress, bytes3 region, uint powerDischarge, bool hasRenewableEnergy) public {
+        CSs[CSaddress] = entityInstance.createCS(CSaddress, CPOaddress, region, powerDischarge, hasRenewableEnergy);
         emit CSRegistered(CSaddress, CPOaddress);
     }
     function registerEV(address EVaddress, uint maxCapacity, uint batteryEfficiency) public {

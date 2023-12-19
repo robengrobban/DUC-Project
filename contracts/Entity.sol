@@ -43,7 +43,7 @@ contract Entity is Structure, IEntity {
         });
     }
 
-    function createCS(address CSaddress, address CPOaddress, bytes3 region, uint powerDischarge) public view returns (CS memory) {
+    function createCS(address CSaddress, address CPOaddress, bytes3 region, uint powerDischarge, bool hasRenewableEnergy) public view returns (CS memory) {
         require(msg.sender == contractAddress, "102");
         require(CPOaddress == tx.origin, "302");
         require(contractInstance.isCPO(CPOaddress), "202");
@@ -55,7 +55,8 @@ contract Entity is Structure, IEntity {
             _address: CSaddress,
             cpo: CPOaddress,
             region: region,
-            powerDischarge: powerDischarge
+            powerDischarge: powerDischarge,
+            hasRenewableEnergy: hasRenewableEnergy
         });
     }
 

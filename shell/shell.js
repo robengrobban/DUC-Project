@@ -50,7 +50,7 @@ if (false) {
     console.log("Registring CPO 2...");
     await operator2.register(false);
     console.log("Registring CS...");
-    await operator.registerCS(station.account.address, station.powerDischarge);
+    await operator.registerCS(station.account.address, station.powerDischarge, station.hasRenewableEnergy);
 
     console.log("EV status: " + await car.isRegistered() + " " + await car.isEV());
     console.log("CPO status: " + await operator.isRegistered() + " " + await operator.isCPO());

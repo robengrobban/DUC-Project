@@ -28,12 +28,13 @@ class CPO extends Entity {
         ).send();
     }
 
-    async registerCS(CSaddress, powerDischarge) {
+    async registerCS(CSaddress, powerDischarge, hasRenewableEnergy) {
         return await this.contract.methods.registerCS( 
             CSaddress,
             this.account.address,
             this.web3.utils.fromAscii("SE1"),
-            powerDischarge
+            powerDischarge,
+            hasRenewableEnergy
         ).send();
     }
 
