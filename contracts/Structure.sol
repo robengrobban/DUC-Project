@@ -41,6 +41,7 @@ interface Structure {
         address _address;
         bytes3 region; // Region CS is in, affects rates/roaming
         uint powerDischarge; // Watt output
+        bool hasRenewableEnergy; // If RES is available at this CS
         address cpo; // Connection to what CPO
     }
     struct EV {

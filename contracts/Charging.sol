@@ -51,6 +51,14 @@ contract Charging is Structure, ICharging {
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
 
+        // Check deal properties
+        Deal memory deal = contractInstance.getDeal(EVaddress, CPOaddress);
+        if ( deal.parameters.onlyRewneableEnergy ) {
+            if ( !cs.hasRenewableEnergy ) {
+                revert("714");
+            }
+        }
+
         if ( CPOaddress != cs.cpo ) {
             // Roaming applies
             contractInstance.transferToNewRates(cs.cpo, cs.region); // Update roaming rates if necessary
@@ -205,6 +213,13 @@ contract Charging is Structure, ICharging {
 
         // Check if deal allows smart charging
         require(C.deal.parameters.allowSmartCharging, "713");
+
+        // Check if Deal requires RES and CS has RES
+        if ( C.deal.parameters.onlyRewneableEnergy ) {
+            if ( !T.cs.hasRenewableEnergy ) {
+                revert("714");
+            }
+        }
 
         // Get smart charging spot
         ChargingScheme memory scheme = getSmartChargingSpot(T, C, startCharge, block.timestamp + 30 seconds, endDate);
