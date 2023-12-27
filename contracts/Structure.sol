@@ -74,11 +74,11 @@ interface Structure {
 
     struct Rate {
         bytes3 region;
+        uint precision; // The selected precision for Rates. (INT calculation)
 
         uint[RATE_SLOTS] current; // Rate per Watt seconds
         uint currentRoaming; // Roaming rate per Watt seconds
         uint startDate; // The date when the rates was applied
-        uint precision; // The selected precision for Rates. (INT calculation)
 
         uint[RATE_SLOTS] next; // The next scheduled rates
         uint nextRoaming; // The next roaming rates
