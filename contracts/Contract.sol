@@ -5,7 +5,7 @@ pragma solidity ^0.8.23;
 import './Structure.sol';
 import './IContract.sol';
 import './IEntity.sol';
-import './IDeal.sol';
+import './IAgreement.sol';
 import './IConnection.sol';
 import './IRate.sol';
 import './ICharging.sol';
@@ -17,7 +17,7 @@ contract Contract is Structure, IContract {
     */
     address owner;
     IEntity entityInstance;
-    IDeal dealInstance;
+    IAgreement agreementInstance;
     IConnection connectionInstance;
     IRate rateInstance;
     ICharging chargingInstance;
@@ -26,10 +26,10 @@ contract Contract is Structure, IContract {
         owner = msg.sender;
     }
 
-    function set(address entityAddress, address dealAddress, address connectionAddress, address rateAddress, address chargingAddress) public {
+    function set(address entityAddress, address agreementAddress, address connectionAddress, address rateAddress, address chargingAddress) public {
         require(msg.sender == owner, "101");
         entityInstance = IEntity(entityAddress);
-        dealInstance = IDeal(dealAddress);
+        agreementInstance = IAgreement(agreementAddress);
         connectionInstance = IConnection(connectionAddress);
         rateInstance = IRate(rateAddress);
         chargingInstance = ICharging(chargingAddress);
@@ -43,7 +43,7 @@ contract Contract is Structure, IContract {
     mapping(address => CS) CSs;
     mapping(address => EV) EVs;
 
-    mapping(address => mapping(address => Deal)) deals; // EV -> CPO -> Deal
+    mapping(address => mapping(address => Agreement)) agreements; // EV -> CPO -> Agreement
 
     mapping(address => mapping(address => Connection)) connections; // EV -> CS -> Connection
 
@@ -61,9 +61,9 @@ contract Contract is Structure, IContract {
     event CSRegistered(address indexed cs, address indexed cpo);
     event EVRegistered(address indexed ev);
 
-    event DealProposed(address indexed ev, address indexed cpo, Deal deal);
-    event DealProposalReverted(address indexed ev, address indexed cpo);
-    event DealResponded(address indexed ev, address indexed cpo, bool accepted, Deal deal);
+    event AgreementProposed(address indexed ev, address indexed cpo, Agreement agreement);
+    event AgreementProposalReverted(address indexed ev, address indexed cpo);
+    event AgreementResponded(address indexed ev, address indexed cpo, bool accepted, Agreement agreement);
 
     event ConnectionMade(address indexed ev, address indexed cs, Connection connection);
     event Disconnection(address indexed ev, address indexed cs);
@@ -116,11 +116,11 @@ contract Contract is Structure, IContract {
         return getTriplett(EVaddress, CSaddress, CSs[CSaddress].cpo);
     }*/
 
-    function getDeal(address EVaddress, address CPOaddress) public view returns (Deal memory) {
-        return deals[EVaddress][CPOaddress];
+    function getAgreement(address EVaddress, address CPOaddress) public view returns (Agreement memory) {
+        return agreements[EVaddress][CPOaddress];
     }
-    function isDealActive(address EVaddress, address CPOaddress) public view returns (bool) {
-        return deals[EVaddress][CPOaddress].accepted && deals[EVaddress][CPOaddress].endDate > block.timestamp;
+    function isAgreementActive(address EVaddress, address CPOaddress) public view returns (bool) {
+        return agreements[EVaddress][CPOaddress].accepted && agreements[EVaddress][CPOaddress].endDate > block.timestamp;
     }
 
     function getConnection(address EVaddress, address CSaddress) public view returns (Connection memory) {
@@ -177,19 +177,19 @@ contract Contract is Structure, IContract {
 
 
 
-    function proposeDeal(address EVaddress, address CPOaddress, DealParameters calldata dealParameters) public {
-        Deal memory proposedDeal = dealInstance.proposeDeal(EVaddress, CPOaddress, dealParameters);
-        deals[EVaddress][CPOaddress] = proposedDeal;
-        emit DealProposed(EVaddress, CPOaddress, proposedDeal);
+    function proposeAgreement(address EVaddress, address CPOaddress, AgreementParameters calldata agreementParameters) public {
+        Agreement memory proposedAgreement = agreementInstance.proposeAgreement(EVaddress, CPOaddress, agreementParameters);
+        agreements[EVaddress][CPOaddress] = proposedAgreement;
+        emit AgreementProposed(EVaddress, CPOaddress, proposedAgreement);
     }
-    function revertProposedDeal(address EVaddress, address CPOaddress, uint dealId) public {
-        deals[EVaddress][CPOaddress] = dealInstance.revertProposedDeal(EVaddress, CPOaddress, dealId);
-        emit DealProposalReverted(EVaddress, CPOaddress);
+    function revertProposedAgreement(address EVaddress, address CPOaddress, uint agreementId) public {
+        agreements[EVaddress][CPOaddress] = agreementInstance.revertProposedAgreement(EVaddress, CPOaddress, agreementId);
+        emit AgreementProposalReverted(EVaddress, CPOaddress);
     }
-    function respondDeal(address EVaddress, address CPOaddress, bool accepted, uint dealId) public {
-        Deal memory proposedDeal = dealInstance.respondDeal(EVaddress, CPOaddress, accepted, dealId);
-        deals[EVaddress][CPOaddress] = proposedDeal;
-        emit DealResponded(EVaddress, CPOaddress, accepted, proposedDeal);
+    function respondAgreement(address EVaddress, address CPOaddress, bool accepted, uint agreementId) public {
+        Agreement memory proposedAgreement = agreementInstance.respondAgreement(EVaddress, CPOaddress, accepted, agreementId);
+        agreements[EVaddress][CPOaddress] = proposedAgreement;
+        emit AgreementResponded(EVaddress, CPOaddress, accepted, proposedAgreement);
     }
 
 

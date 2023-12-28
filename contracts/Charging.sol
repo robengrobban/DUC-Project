@@ -47,13 +47,13 @@ contract Charging is Structure, ICharging {
         //Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress, CPOaddress);
         CS memory cs = contractInstance.getCS(CSaddress);
                 
-        require(contractInstance.isDealActive(EVaddress, CPOaddress), "503");
+        require(contractInstance.isAgreementActive(EVaddress, CPOaddress), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
 
-        // Check deal properties
-        Deal memory deal = contractInstance.getDeal(EVaddress, CPOaddress);
-        if ( deal.parameters.onlyRewneableEnergy ) {
+        // Check agreement properties
+        Agreement memory agreement = contractInstance.getAgreement(EVaddress, CPOaddress);
+        if ( agreement.parameters.onlyRewneableEnergy ) {
             if ( !cs.hasRenewableEnergy ) {
                 revert("714");
             }
@@ -91,7 +91,7 @@ contract Charging is Structure, ICharging {
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
         
         ChargingScheme memory scheme = contractInstance.getCharging(EVaddress, CSaddress);
-        require(contractInstance.isDealActive(EVaddress, scheme.CPOaddress), "503");
+        require(contractInstance.isAgreementActive(EVaddress, scheme.CPOaddress), "503");
         require(scheme.id == schemeId, "704");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
 
@@ -146,8 +146,8 @@ contract Charging is Structure, ICharging {
 
         Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress, CPOaddress);
 
-        // Make sure that there is still a deal active, and that the car is not fully charged
-        //require(contractInstance.isDealActive(EVaddress, CPOaddress), "503"); // TODO : Might not be necessary, as it happened in reqCharge
+        // Make sure that there is still a agreement active, and that the car is not fully charged
+        //require(contractInstance.isAgreementActive(EVaddress, CPOaddress), "503"); // TODO : Might not be necessary, as it happened in reqCharge
         require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
         require(startCharge <= targetCharge, "708");
         require(targetCharge <= T.ev.maxCapacity, "709");
@@ -165,7 +165,7 @@ contract Charging is Structure, ICharging {
             C.roaming = contractInstance.getRate(T.cs.cpo, T.cs.region);
         }
 
-        C.deal = contractInstance.getDeal(EVaddress, CPOaddress);
+        C.agreement = contractInstance.getAgreement(EVaddress, CPOaddress);
         C.rate = contractInstance.getRate(CPOaddress, T.cs.region);
 
         // Calculate charge time 
@@ -190,7 +190,7 @@ contract Charging is Structure, ICharging {
         
         Triplett memory T = contractInstance.getTriplett(EVaddress, CSaddress, CPOaddress);
                 
-        require(contractInstance.isDealActive(EVaddress, CPOaddress), "503");
+        require(contractInstance.isAgreementActive(EVaddress, CPOaddress), "503");
         require(contractInstance.isConnected(EVaddress, CSaddress), "605");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
         require(startCharge < T.ev.maxCapacity && startCharge >= 0, "707");
@@ -208,14 +208,14 @@ contract Charging is Structure, ICharging {
         contractInstance.transferToNewRates(CPOaddress, T.cs.region);
         require(contractInstance.isRatesAvailable(CPOaddress, T.cs.region), "804");
 
-        C.deal = contractInstance.getDeal(EVaddress, CPOaddress);
+        C.agreement = contractInstance.getAgreement(EVaddress, CPOaddress);
         C.rate = contractInstance.getRate(CPOaddress, T.cs.region);
 
-        // Check if deal allows smart charging
-        require(C.deal.parameters.allowSmartCharging, "713");
+        // Check if agreement allows smart charging
+        require(C.agreement.parameters.allowSmartCharging, "713");
 
-        // Check if Deal requires RES and CS has RES
-        if ( C.deal.parameters.onlyRewneableEnergy ) {
+        // Check if Agreement requires RES and CS has RES
+        if ( C.agreement.parameters.onlyRewneableEnergy ) {
             if ( !T.cs.hasRenewableEnergy ) {
                 revert("714");
             }
@@ -237,7 +237,7 @@ contract Charging is Structure, ICharging {
 
         // Get scheme
         ChargingScheme memory scheme = contractInstance.getCharging(EVaddress, CSaddress);
-        require(contractInstance.isDealActive(EVaddress, scheme.CPOaddress), "503");
+        require(contractInstance.isAgreementActive(EVaddress, scheme.CPOaddress), "503");
         require(scheme.id == schemeId, "704");
         require(scheme.smartCharging, "710");
         require(!contractInstance.isCharging(EVaddress, CSaddress), "702");
@@ -277,7 +277,7 @@ contract Charging is Structure, ICharging {
         uint index = 0;
         while ( chargeTimeLeft > 0 && elapsedTime < scheme.maxTime ) {
             
-            (bool useSlot, uint timeInSlot, uint currentRate) = slotDetails(startDate, elapsedTime, C.deal, C.rate);
+            (bool useSlot, uint timeInSlot, uint currentRate) = slotDetails(startDate, elapsedTime, C.agreement, C.rate);
 
             // If time in slot is bigger than max time allowed, cap to max time
             timeInSlot = elapsedTime+timeInSlot > scheme.maxTime
@@ -320,7 +320,7 @@ contract Charging is Structure, ICharging {
 
         return scheme;
     }
-    function slotDetails(uint startTime, uint elapsedTime, Deal memory deal, Rate memory rate) private pure returns (bool, uint, uint) {
+    function slotDetails(uint startTime, uint elapsedTime, Agreement memory agreement, Rate memory rate) private pure returns (bool, uint, uint) {
         uint currentTime = startTime + elapsedTime;
 
         uint currentRate = (rate.changeDate != 0 && currentTime >= rate.changeDate) 
@@ -329,15 +329,15 @@ contract Charging is Structure, ICharging {
         
         uint nextRateSlot = getNextRateSlot(currentTime); // Unix time for when the next rate slot starts.
 
-        bool useSlot = currentRate <= deal.parameters.maxRate.value;
+        bool useSlot = currentRate <= agreement.parameters.maxRate.value;
 
         uint timeInSlot = nextRateSlot - currentTime;
 
         return (useSlot, timeInSlot, currentRate);
     }
 
-    function shouldUseSlot(uint currentRate, Deal memory deal, Rate memory rate) private pure returns (bool) {
-        PrecisionNumber memory maxRate = deal.parameters.maxRate;
+    function shouldUseSlot(uint currentRate, Agreement memory agreement, Rate memory rate) private pure returns (bool) {
+        PrecisionNumber memory maxRate = agreement.parameters.maxRate;
 
         uint CPOprecision = rate.precision;
         PrecisionNumber memory slotRate = PrecisionNumber({
@@ -385,7 +385,7 @@ contract Charging is Structure, ICharging {
     }
 
     function possibleChargingTime(Chargelett memory C, uint startDate) private pure returns (uint) {
-        uint maxTime = C.deal.endDate - startDate;
+        uint maxTime = C.agreement.endDate - startDate;
         if ( C.rate.changeDate == 0 || (C.roaming.startDate != 0 && C.roaming.changeDate == 0) ) {
             uint currentRateEdge = getNextRateChangeAtTime(startDate) - startDate;
             if ( maxTime > currentRateEdge ) {
@@ -412,7 +412,7 @@ contract Charging is Structure, ICharging {
         require(endDate >= startDate, "711");
         uint chargeWindow = endDate - startDate;
 
-        // The max time left for charging according to deal and rate
+        // The max time left for charging according to agreement and rate
         uint maxTime = possibleChargingTime(C, startDate);
 
         // Charge window needs to be within bounds of maximum possible charging time
@@ -460,7 +460,16 @@ contract Charging is Structure, ICharging {
 
             suggestion = generateSchemeSlots(suggestion, C, T);
 
-            if ( (suggestion.priceInWei > scheme.priceInWei && suggestion.activeTime >= scheme.activeTime) || (suggestion.activeTime > scheme.activeTime) ) {
+            if ( 
+                suggestion.priceInWei != 0 && 
+                (
+                    (suggestion.priceInWei < scheme.priceInWei && suggestion.activeTime >= scheme.activeTime) 
+                    || 
+                    (suggestion.activeTime > scheme.activeTime)
+                    ||
+                    (suggestion.priceInWei == scheme.priceInWei && suggestion.activeTime == scheme.activeTime && suggestion.idleTime < scheme.idleTime) 
+                ) 
+            ) {
                 scheme = suggestion;
             }
             

@@ -16,16 +16,14 @@ car.listen('Payment').on('data', log => {
     console.log("Payment: ", log.returnValues);
 });
 
-console.log("DEBUG RATING: ", await operator.getRate(operator.account.address, "SE1"));
-
 if (false) {
     console.log("DEBUG EV: ", await car.getEV());
     console.log("DEBUG CPO: ", await operator.getCPO());
     console.log("DEBUG CS: ", await station.getCS());
-    console.log("DEBUG DEAL: ", await car.getDeal(car.account.address, operator.account.address));
+    console.log("DEBUG AGREEMENT: ", await car.getAgreement(car.account.address, operator.account.address));
     console.log("DEBUG CONNECTION: ", await car.getConnection(car.account.address, station.account.address));
     console.log("DEBUG CHARGING SCHEME: ", await car.getCharging(car.account.address, station.account.address));
-    console.log("DEBUG RATING: ", await operator.getRate(operator.account.address, "SE1"));
+    console.log("DEBUG RATE: ", await operator.getRate(operator.account.address, "SE1"));
     console.log("EV MONEY: ", await car.balance());
     console.log("EV DEPOSIT: ", await car.getDeposit());
     console.log("CPO MONEY: ", await operator.balance());
@@ -48,7 +46,7 @@ if (false) {
     console.log("Registring CPO 1...");
     await operator.register(false);
     console.log("Registring CPO 2...");
-    await operator2.register(false);
+    await operator2.register(true);
     console.log("Registring CS...");
     await operator.registerCS(station.account.address, station.powerDischarge, station.hasRenewableEnergy);
 
@@ -68,21 +66,21 @@ if (false) {
         await operator.registerNewRates(rates, roaming);
     }
 
-    // Propose deal
-    operator.listen('DealProposed').on('data', async log => {
-        console.log("New deal arrived: ", log.returnValues);
+    // Propose agreement
+    operator.listen('AgreementProposed').on('data', async log => {
+        console.log("New agreement arrived: ", log.returnValues);
         console.log("ev: ", log.returnValues.ev);
-        console.log("id: ", log.returnValues.deal.id);
-        console.log("Answering deal...");
-        await operator.respondDeal(log.returnValues.ev, true, log.returnValues.deal.id);
+        console.log("id: ", log.returnValues.agreement.id);
+        console.log("Answering agreement...");
+        await operator.respondAgreement(log.returnValues.ev, true, log.returnValues.agreement.id);
     });
-    car.listen('DealResponded').on('data', log => {
-        console.log("Response to deal: ", log.returnValues);
-        console.log("Accepted? ", log.returnValues.deal.accepted);
+    car.listen('AgreementResponded').on('data', log => {
+        console.log("Response to agreement: ", log.returnValues);
+        console.log("Accepted? ", log.returnValues.agreement.accepted);
     });
 
-    console.log("Proposing deal...");
-    await car.proposeDeal(operator.account.address);
+    console.log("Proposing agreement...");
+    await car.proposeAgreement(operator.account.address);
 
     // Make connection
     station.listen('ConnectionMade').on('data', log => {
@@ -122,18 +120,18 @@ if (false) {
     let roaming = operator.generateRoaming();
     await operator.registerNewRates(rates, roaming);
 }
-if (true) {
+if (false) {
     // Prompt for automatic rates
     console.log("Prompring for new rates");
     console.log(await car.contract.methods.updateAutomaticRates().send());
 }
 if (false) {
     // Prepare for automatic rates
-    operator.listen('NewRates').on('data', log => {
+    operator2.listen('NewRates').on('data', log => {
         console.log("New rates: ", log.returnValues);
     });
     console.log("Next roaming");
-    await operator.registerNextRoaming(operator.generateRoaming());
+    await operator2.registerNextRoaming(operator2.generateRoaming());
 }
 if (false) {
     // Calculate charging price
@@ -151,7 +149,7 @@ if (false) {
     station.listen('ChargingRequested').on('data', async log => {
         console.log("CS charging request ", log.returnValues);
         // Start charging
-        if (false) {
+        if (true) {
             let schemeId = log.returnValues.scheme.id;
             let EVaddress = log.returnValues.ev;
             console.log("CS is responding to charging request ", schemeId);
@@ -161,7 +159,7 @@ if (false) {
 
     // Request charging
     console.log("EV requests charging...");
-    await car.requestCharging(1000, station.account.address, operator.account.address, car.getTime() + 30);
+    await car.requestCharging(1000, station.account.address, operator2.account.address, car.getTime() + 30);
 }
 if (false) {
     // Listenings

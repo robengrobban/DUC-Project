@@ -16,8 +16,8 @@ interface IContract is Structure {
     function getTriplett(address, address, address) external view returns (Triplett memory);
     //function getTriplett(address, address) external view returns (Triplett memory);
 
-    function getDeal(address, address) external view returns (Deal memory);
-    function isDealActive(address, address) external view returns (bool);
+    function getAgreement(address, address) external view returns (Agreement memory);
+    function isAgreementActive(address, address) external view returns (bool);
 
     function getConnection(address, address) external view returns (Connection memory);
     function isConnected(address, address) external view returns (bool);

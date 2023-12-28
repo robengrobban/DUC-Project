@@ -82,8 +82,8 @@ class Entity {
         );
     }
 
-    async getDeal(EVaddress, CPOaddress) {
-        return await this.contract.methods.getDeal(
+    async getAgreement(EVaddress, CPOaddress) {
+        return await this.contract.methods.getAgreement(
             EVaddress, 
             CPOaddress
         ).call();

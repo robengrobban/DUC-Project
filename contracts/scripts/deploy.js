@@ -78,15 +78,15 @@ async function contractConnect(name, ad1, ad2, ab3, ab4, ab5) {
 
 const contract_address = await deploy("Contract");
 const entity_address = await deploy("Entity");
-const deal_address = await deploy("Deal");
+const agreement_address = await deploy("Agreement");
 const connection_address = await deploy("Connection");
 const rate_address = await deploy("Rate");
 const charging_address = await deploy("Charging");
 const oracle_address = await deploy("Oracle");
 
-await contractConnect("Contract", entity_address, deal_address, connection_address, rate_address, charging_address);
+await contractConnect("Contract", entity_address, agreement_address, connection_address, rate_address, charging_address);
 await connect("Entity", contract_address);
-await connect("Deal", contract_address);
+await connect("Agreement", contract_address);
 await connect("Connection", contract_address);
 await connect2("Rate", contract_address, oracle_address);
 await connect("Charging", contract_address);

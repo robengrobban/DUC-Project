@@ -31,11 +31,11 @@ class EV extends Entity {
         ).send();
     }
 
-    async proposeDeal(CPOaddress) {
-        return await this.contract.methods.proposeDeal(
+    async proposeAgreement(CPOaddress) {
+        return await this.contract.methods.proposeAgreement(
             this.account.address, 
             CPOaddress,
-            [[500, this.precision], false, true] // DealProperties
+            [[500, this.precision], false, true] // AgreementProperties
         ).send();
     }
 
@@ -114,7 +114,7 @@ class EV extends Entity {
             CSaddress,
             CPOaddress,
             this.wattHoursToWattSeconds(this.currentCharge),
-            this.getTime() + 60 * 60
+            this.getTime() + 60 * 60 * 1
         ).send();
     }
 

@@ -50,16 +50,16 @@ interface Structure {
         uint batteryEfficiency; // Battery charge efficency (0-100)
     }
 
-    struct Deal {
+    struct Agreement {
         uint id;
         bool accepted;
         address EV;
         address CPO;
         uint startDate;
         uint endDate;
-        DealParameters parameters;
+        AgreementParameters parameters;
     }
-    struct DealParameters {
+    struct AgreementParameters {
         PrecisionNumber maxRate;
         bool onlyRewneableEnergy;
         bool allowSmartCharging;
@@ -111,7 +111,7 @@ interface Structure {
         uint chargeTime; // Seconds of time needed to charge EV
         uint activeTime; // Seconds of time CS is charging EV, based on user preferneces of max rates
         uint idleTime; // Seconds of time CS is not charging EV, based on user preferences of max rates
-        uint maxTime; // The maximum amount of time a scheme can run for in seconds (ends at deal end or when new (unkown) rates start)
+        uint maxTime; // The maximum amount of time a scheme can run for in seconds (ends at agreement end or when new (unkown) rates start)
         uint endDate; // Unix time for when charging should end
         uint finishDate; // Unix time for when charing actually end
         
@@ -142,7 +142,7 @@ interface Structure {
     }
 
     struct Chargelett {
-        Deal deal;
+        Agreement agreement;
         Rate rate;
         Rate roaming;
     }

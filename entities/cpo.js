@@ -38,8 +38,8 @@ class CPO extends Entity {
         ).send();
     }
 
-    async respondDeal(EVaddress, answer, id) {
-        return await this.contract.methods.respondDeal(
+    async respondAgreement(EVaddress, answer, id) {
+        return await this.contract.methods.respondAgreement(
             EVaddress, 
             this.account.address, 
             answer, 
@@ -70,13 +70,13 @@ class CPO extends Entity {
     generateRates() {
         let rates = [];
         for (let i = 0; i < this.rateSlots; i++) {
-            //rates[i] = this.web3.utils.toBigInt( Math.floor(this.pricePerWattHoursToWattSeconds((-0.1*i**2 + 6*i + 5)*this.precision)) );
-            if ( i % 2 == 0 ) {
+            rates[i] = this.web3.utils.toBigInt( Math.floor(this.pricePerWattHoursToWattSeconds((-0.000001*i**2 + 0.0001*i + 0.0001)*this.precision)) );
+            /*if ( i % 2 == 0 ) {
                 rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.001)*this.precision)+0.5 ));
             }
             else {
                 rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.002)*this.precision)+0.5 ));
-            }
+            }*/
             //rates[i] = this.web3.utils.toBigInt(Math.floor( (this.pricePerWattHoursToWattSeconds(0.0005)*this.precision)+0.5 ));
         }
         return rates;
